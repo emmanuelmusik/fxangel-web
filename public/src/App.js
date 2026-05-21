@@ -568,10 +568,34 @@ export default function FXAngel() {
                         </div>
                       )}
                     </div>
-                    <div style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px" }}>
+                    <div style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
                       <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 4 }}>AI REASONING</div>
                       <div style={{ color: "#cdd9e5", fontSize: 11, lineHeight: 1.6 }}>{aiAnalysis.reasoning}</div>
                     </div>
+                    {aiAnalysis.signalGenerated && (
+                      <div style={{
+                        background: "linear-gradient(135deg, #00e5a015, #0d1117)",
+                        border: "1px solid #00e5a040",
+                        borderRadius: 8, padding: "10px 12px",
+                        display: "flex", alignItems: "center", gap: 8,
+                      }}>
+                        <div style={{ fontSize: 18 }}>⚡</div>
+                        <div>
+                          <div style={{ color: "#00e5a0", fontSize: 10, fontFamily: "'Space Mono', monospace", fontWeight: 700 }}>SIGNAL GENERATED & SENT TO TELEGRAM</div>
+                          <div style={{ color: "#8b949e", fontSize: 10 }}>Check Signals tab and your Telegram for full SL/TP levels</div>
+                        </div>
+                      </div>
+                    )}
+                    {!aiAnalysis.signalGenerated && aiAnalysis.signal !== "WAIT" && (
+                      <div style={{
+                        background: "#ffa50210", border: "1px solid #ffa50230",
+                        borderRadius: 8, padding: "8px 12px",
+                      }}>
+                        <div style={{ color: "#ffa502", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
+                          ⚠️ CONFIDENCE BELOW 70% — NO SIGNAL GENERATED
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
