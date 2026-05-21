@@ -246,13 +246,59 @@ export default function FXAngel() {
   const runAnalysis = async () => {
     setAnalysisLoading(true);
     setAiAnalysis(null);
-    const data = await apiFetch("/api/analysis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pair: selectedPair }),
-    });
-    if (data?.analysis) setAiAnalysis(data.analysis);
-    else setAiAnalysis({ error: "Analysis failed — is the backend running?" });
+    try {
+      const currentPrice = prices[selectedPair];
+      const isJPY = selectedPair.includes("JPY");
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `You are FXAngel, a professional FX technical analyst. Analyse ${selectedPair} right now.
+Current price: ${currentPrice || "unavailable"}
+Date: ${new Date().toUTCString()}
+
+Based on your knowledge of current market conditions, price action, and technical analysis, provide:
+1. Overall trend (BULLISH/BEARISH/SIDEWAYS)
+2. Key support level
+3. Key resistance level
+4. RSI estimate (0-100)
+5. Chart pattern if any
+6. Signal: BUY / SELL / WAIT
+7. Confidence: 0-100%
+8. Brief reasoning (2-3 sentences)
+9. ATR estimate for ${selectedPair}: ${isJPY ? "around 0.45" : "around 0.0030"}
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "trend": "BULLISH",
+  "signal": "BUY",
+  "confidence": 75,
+  "support": 1.0800,
+  "resistance": 1.0900,
+  "pattern": "None",
+  "rsi_estimate": 58,
+  "reasoning": "Brief reasoning here",
+  "atr": 0.0030
+}`
+          }]
+        })
+      });
+
+      const data = await response.json();
+      const text = data.content?.map(b => b.text || "").join("") || "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const analysis = JSON.parse(clean);
+      analysis.pair = selectedPair;
+      analysis.price = currentPrice;
+      setAiAnalysis(analysis);
+    } catch (err) {
+      setAiAnalysis({ error: "Analysis failed — please try again." });
+    }
     setAnalysisLoading(false);
   };
 
@@ -505,13 +551,13 @@ export default function FXAngel() {
                   {prices[selectedPair]?.toFixed(selectedPair.includes("JPY") ? 3 : 5) || "---"}
                 </div>
               </div>
-              <button onClick={runAnalysis} disabled={analysisLoading || !connected} style={{
-                background: !connected ? "#21262d" : analysisLoading ? "#21262d" : "linear-gradient(135deg, #ff4757, #c0392b)",
+              <button onClick={runAnalysis} disabled={analysisLoading} style={{
+                background: analysisLoading ? "#21262d" : "linear-gradient(135deg, #ff4757, #c0392b)",
                 border: "none", borderRadius: 10, padding: "10px 16px",
                 color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 11,
-                cursor: (analysisLoading || !connected) ? "not-allowed" : "pointer", fontWeight: 700,
+                cursor: analysisLoading ? "not-allowed" : "pointer", fontWeight: 700,
               }}>
-                {analysisLoading ? "ANALYSING..." : !connected ? "OFFLINE" : "RUN ANALYSIS"}
+                {analysisLoading ? "ANALYSING..." : "RUN ANALYSIS"}
               </button>
             </div>
 
