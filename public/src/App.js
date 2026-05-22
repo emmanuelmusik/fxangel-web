@@ -586,13 +586,32 @@ export default function FXAngel() {
                         </div>
                       </div>
                     )}
-                    {!aiAnalysis.signalGenerated && aiAnalysis.signal !== "WAIT" && (
+                    {aiAnalysis.signalGenerated === false && aiAnalysis.duplicateReason && (
+                      <div style={{
+                        background: "#58a6ff10", border: "1px solid #58a6ff30",
+                        borderRadius: 8, padding: "8px 12px",
+                      }}>
+                        <div style={{ color: "#58a6ff", fontSize: 10, fontFamily: "'Space Mono', monospace", fontWeight: 700 }}>🔄 DUPLICATE BLOCKED</div>
+                        <div style={{ color: "#8b949e", fontSize: 10, marginTop: 2 }}>{aiAnalysis.duplicateReason}</div>
+                      </div>
+                    )}
+                    {!aiAnalysis.signalGenerated && !aiAnalysis.duplicateReason && aiAnalysis.signal !== "WAIT" && (
                       <div style={{
                         background: "#ffa50210", border: "1px solid #ffa50230",
                         borderRadius: 8, padding: "8px 12px",
                       }}>
                         <div style={{ color: "#ffa502", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
                           ⚠️ CONFIDENCE BELOW 70% — NO SIGNAL GENERATED
+                        </div>
+                      </div>
+                    )}
+                    {aiAnalysis.signal === "WAIT" && (
+                      <div style={{
+                        background: "#8b949e10", border: "1px solid #8b949e30",
+                        borderRadius: 8, padding: "8px 12px",
+                      }}>
+                        <div style={{ color: "#8b949e", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
+                          ⏳ WAIT — No clear setup detected for this pair right now
                         </div>
                       </div>
                     )}
