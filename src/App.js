@@ -115,6 +115,28 @@ function SignalCard({ signal, expanded, onToggle }) {
             </div>
           )}
 
+          {signal.timeframes && (
+            <div style={{
+              background: "#0d1117", border: "1px solid #21262d",
+              borderRadius: 8, padding: "10px 12px", marginTop: 8,
+            }}>
+              <div style={{ color: "#ffa502", fontSize: 10, fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>⏱ 3-TIMEFRAME CONFLUENCE</div>
+              {Object.entries(signal.timeframes).map(([tf, data]) => {
+                const tfColor = data.signal === "BUY" ? "#00e5a0" : data.signal === "SELL" ? "#ff4757" : "#8b949e";
+                return (
+                  <div key={tf} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <div style={{ background: "#21262d", borderRadius: 4, padding: "1px 6px", color: "#cdd9e5", fontSize: 10, fontFamily: "'Space Mono', monospace", width: 28, textAlign: "center" }}>{tf}</div>
+                      <div style={{ color: tfColor, fontSize: 11, fontFamily: "'Space Mono', monospace", fontWeight: 700 }}>{data.signal}</div>
+                      <div style={{ color: "#8b949e", fontSize: 10 }}>{data.trend}</div>
+                    </div>
+                    <div style={{ color: tfColor, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>{data.confidence}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {sltp.atr && (
             <div style={{ marginTop: 14 }}>
               <div style={{ color: "#8b949e", fontSize: 10, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
@@ -568,6 +590,27 @@ export default function FXAngel() {
                         </div>
                       )}
                     </div>
+                    {aiAnalysis.timeframes && (
+                      <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                        <div style={{ color: "#ffa502", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>⏱ 3-TIMEFRAME CONFLUENCE</div>
+                        {Object.entries(aiAnalysis.timeframes).map(([tf, data]) => {
+                          const tfColor = data.signal === "BUY" ? "#00e5a0" : data.signal === "SELL" ? "#ff4757" : "#8b949e";
+                          return (
+                            <div key={tf} style={{ marginBottom: 8, borderBottom: "1px solid #21262d", paddingBottom: 6 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  <div style={{ background: "#21262d", borderRadius: 4, padding: "1px 6px", color: "#cdd9e5", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>{tf}</div>
+                                  <div style={{ color: tfColor, fontSize: 12, fontFamily: "'Space Mono', monospace", fontWeight: 700 }}>{data.signal}</div>
+                                  <div style={{ color: "#8b949e", fontSize: 10 }}>{data.trend}</div>
+                                </div>
+                                <div style={{ color: tfColor, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>{data.confidence}%</div>
+                              </div>
+                              <div style={{ color: "#8b949e", fontSize: 10, lineHeight: 1.4 }}>{data.reasoning}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div style={{ background: "#161b22", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
                       <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 4 }}>AI REASONING</div>
                       <div style={{ color: "#cdd9e5", fontSize: 11, lineHeight: 1.6 }}>{aiAnalysis.reasoning}</div>
