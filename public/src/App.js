@@ -265,84 +265,69 @@ export default function FXAngel() {
     if (statusData) setServerStatus(statusData);
   }, []);
 
-  // Direct Binance price fetcher — bypasses backend for speed
-  const fetchCryptoPricesDirect = useCallback(async () => {
-    const BINANCE_SYMBOLS = {
-      "BTC/USD": "BTCUSDT", "ETH/USD": "ETHUSDT", "SOL/USD": "SOLUSDT",
-      "XRP/USD": "XRPUSDT", "BNB/USD": "BNBUSDT", "IOTA/USD": "IOTAUSDT",
-      "DOGE/USD": "DOGEUSDT", "ETC/USD": "ETCUSDT",
-    };
-
-    try {
-      const results = await Promise.all(
-        Object.entries(BINANCE_SYMBOLS).map(async ([pair, symbol]) => {
-          try {
-            const endpoints = [
-              `https://api.binance.us/api/v3/ticker/price?symbol=${symbol}`,
-              `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
-            ];
-            for (const url of endpoints) {
-              try {
-                const res = await fetch(url);
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (data.price) {
-                  const price = parseFloat(data.price);
-                  const decimals = price > 10000 ? 2 : price > 100 ? 3 : price > 1 ? 4 : 6;
-                  return { pair, price: parseFloat(price.toFixed(decimals)) };
-                }
-              } catch { continue; }
-            }
-            return null;
-          } catch { return null; }
-        })
-      );
-
-      const valid = results.filter(r => r !== null);
-      if (valid.length > 0) {
-        setPrices(prev => {
-          const next = { ...prev };
-          valid.forEach(({ pair, price }) => { next[pair] = price; });
-          return next;
-        });
-      }
-    } catch (err) {
-      console.error("Direct Binance error:", err);
-    }
-  }, []);
+  // ── WebSocket for real-time prices and signals ──────────────
+  const wsRef = useRef(null);
 
   useEffect(() => {
     fetchAll();
 
-    // Fetch crypto prices directly from Binance every second
-    fetchCryptoPricesDirect();
-    const cryptoInterval = setInterval(fetchCryptoPricesDirect, 1000);
+    // Connect to WebSocket
+    const WS_URL = API_BASE.replace("https://", "wss://").replace("http://", "ws://");
+    
+    function connectWS() {
+      try {
+        const ws = new WebSocket(WS_URL);
+        wsRef.current = ws;
 
-    // Fetch FX prices from backend every 2 minutes (Twelve Data limit)
-    const fxInterval = setInterval(async () => {
-      const priceData = await apiFetch("/api/prices");
-      if (priceData?.prices) {
-        setPrices(prev => {
-          const next = { ...prev };
-          // Only update FX pairs from backend
-          const FX_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
-          FX_PAIRS.forEach(pair => {
-            if (priceData.prices[pair]) next[pair] = priceData.prices[pair];
-          });
-          return next;
-        });
+        ws.onopen = () => {
+          console.log("[WS] Connected to FXAngel backend");
+          setConnected(true);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === "prices") {
+              setPrices(msg.data);
+            }
+
+            if (msg.type === "signal") {
+              const newSignal = msg.data;
+              setSignals(prev => [newSignal, ...prev].slice(0, 50));
+              setNotification(newSignal);
+              setTimeout(() => setNotification(null), 6000);
+            }
+          } catch (err) {
+            console.error("[WS] Parse error:", err);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("[WS] Disconnected — reconnecting in 3s...");
+          setConnected(false);
+          setTimeout(connectWS, 3000); // Auto-reconnect
+        };
+
+        ws.onerror = () => {
+          ws.close();
+        };
+      } catch (err) {
+        console.error("[WS] Connection error:", err);
+        setTimeout(connectWS, 3000);
       }
-    }, 120000);
+    }
 
-    // Fetch signals and news every 10 seconds
+    connectWS();
+
+    // Fallback: fetch signals and news every 10 seconds via REST
     const dataInterval = setInterval(fetchAll, 10000);
 
     return () => {
-      clearInterval(cryptoInterval);
-      clearInterval(fxInterval);
       clearInterval(dataInterval);
+      if (wsRef.current) wsRef.current.close();
     };
-  }, [fetchAll, fetchCryptoPricesDirect]);
+  }, [fetchAll]);
 
   // ── AI Analysis ───────────────────────────────────────────────────────────
   const runAnalysis = async () => {
