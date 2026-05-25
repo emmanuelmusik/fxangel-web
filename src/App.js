@@ -5,7 +5,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // Backend URL — deployed on Railway
 const API_BASE = "https://fxangel-backend-production.up.railway.app";
 
-const PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
+const FX_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
+const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD", "IOTA/USD", "DOGE/USD", "ETC/USD"];
+const PAIRS = [...FX_PAIRS, ...CRYPTO_PAIRS];
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const apiFetch = async (path, opts = {}) => {
@@ -79,7 +81,12 @@ function SignalCard({ signal, expanded, onToggle }) {
             <span style={{ color: dirColor, fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 12 }}>{signal.direction}</span>
           </div>
           <div>
-            <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2 }}>{signal.pair}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2 }}>{signal.pair}</div>
+              {signal.assetClass === "CRYPTO" && (
+                <div style={{ background: "#ffa50220", border: "1px solid #ffa50240", borderRadius: 4, padding: "1px 5px", fontSize: 8, color: "#ffa502", fontFamily: "'Space Mono', monospace" }}>CRYPTO</div>
+              )}
+            </div>
             <div style={{ color: "#8b949e", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
               {timeStr} · {signal.source}
             </div>
@@ -502,18 +509,35 @@ export default function FXAngel() {
           <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 14 }}>AI TECHNICAL ANALYSIS</div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-              {PAIRS.map(pair => (
-                <button key={pair} onClick={() => { setSelectedPair(pair); setAiAnalysis(null); }} style={{
-                  background: selectedPair === pair ? "#ff4757" : "#21262d",
-                  border: `1px solid ${selectedPair === pair ? "#ff4757" : "#30363d"}`,
-                  borderRadius: 6, padding: "5px 10px",
-                  color: selectedPair === pair ? "#fff" : "#8b949e",
-                  fontFamily: "'Space Mono', monospace", fontSize: 10, cursor: "pointer",
-                }}>
-                  {pair}
-                </button>
-              ))}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 6 }}>💱 FX PAIRS</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                {FX_PAIRS.map(pair => (
+                  <button key={pair} onClick={() => { setSelectedPair(pair); setAiAnalysis(null); }} style={{
+                    background: selectedPair === pair ? "#ff4757" : "#21262d",
+                    border: `1px solid ${selectedPair === pair ? "#ff4757" : "#30363d"}`,
+                    borderRadius: 6, padding: "5px 10px",
+                    color: selectedPair === pair ? "#fff" : "#8b949e",
+                    fontFamily: "'Space Mono', monospace", fontSize: 10, cursor: "pointer",
+                  }}>
+                    {pair}
+                  </button>
+                ))}
+              </div>
+              <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 6 }}>🪙 CRYPTO PAIRS</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {CRYPTO_PAIRS.map(pair => (
+                  <button key={pair} onClick={() => { setSelectedPair(pair); setAiAnalysis(null); }} style={{
+                    background: selectedPair === pair ? "#ffa502" : "#21262d",
+                    border: `1px solid ${selectedPair === pair ? "#ffa502" : "#30363d"}`,
+                    borderRadius: 6, padding: "5px 10px",
+                    color: selectedPair === pair ? "#fff" : "#8b949e",
+                    fontFamily: "'Space Mono', monospace", fontSize: 10, cursor: "pointer",
+                  }}>
+                    {pair}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div style={{
