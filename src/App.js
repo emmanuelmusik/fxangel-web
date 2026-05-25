@@ -267,8 +267,20 @@ export default function FXAngel() {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 1000); // Refresh every second
-    return () => clearInterval(interval);
+
+    // Fetch prices every second for live ticker
+    const priceInterval = setInterval(async () => {
+      const priceData = await apiFetch("/api/prices");
+      if (priceData?.prices) setPrices(priceData.prices);
+    }, 1000);
+
+    // Fetch signals and news every 10 seconds
+    const dataInterval = setInterval(fetchAll, 10000);
+
+    return () => {
+      clearInterval(priceInterval);
+      clearInterval(dataInterval);
+    };
   }, [fetchAll]);
 
   // ── AI Analysis ───────────────────────────────────────────────────────────
