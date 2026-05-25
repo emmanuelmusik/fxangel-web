@@ -267,7 +267,7 @@ export default function FXAngel() {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 10000);
+    const interval = setInterval(fetchAll, 1000); // Refresh every second
     return () => clearInterval(interval);
   }, [fetchAll]);
 
