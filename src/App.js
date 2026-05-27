@@ -5,6 +5,27 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // Backend URL — deployed on Railway
 const API_BASE = "https://fxangel-backend-production.up.railway.app";
 
+// ─── TIME HELPER — uses system local time ─────────
+function formatLocalTime(isoString) {
+  if (!isoString) return "--:--";
+  return new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatLocalDateTime(isoString) {
+  if (!isoString) return "--";
+  const d = new Date(isoString);
+  return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }) +
+    " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getLocalTimeString() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getLocalDateString() {
+  return new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+}
+
 const FX_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
 const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD", "IOTA/USD", "DOGE/USD", "ETC/USD"];
 const PAIRS = [...FX_PAIRS, ...CRYPTO_PAIRS];
@@ -61,7 +82,7 @@ function SignalCard({ signal, expanded, onToggle }) {
   };
   const st = statusMap[signal.status] || statusMap.active;
   const sltp = signal.sltp || {};
-  const timeStr = signal.time ? new Date(signal.time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+  const timeStr = signal.time ? formatLocalTime(signal.time) : "--:--";
 
   return (
     <div onClick={onToggle} style={{
@@ -438,7 +459,7 @@ export default function FXAngel() {
           <div style={{ textAlign: "right" }}>
             <StatusDot connected={connected} />
             <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginTop: 2 }}>
-              {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} GMT
+              {getLocalTimeString()}
             </div>
           </div>
         </div>
@@ -543,7 +564,7 @@ export default function FXAngel() {
           <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>ECONOMIC CALENDAR</div>
             <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+              {getLocalDateString()}
             </div>
 
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
@@ -642,7 +663,7 @@ export default function FXAngel() {
                 ) : (
                   <>
                     <div style={{ color: "#58a6ff", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
-                      🧠 AI ANALYSIS · {selectedPair} · {new Date().toLocaleTimeString()}
+                      🧠 AI ANALYSIS · {selectedPair} · {getLocalTimeString()}
                     </div>
                     <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                       <div style={{
