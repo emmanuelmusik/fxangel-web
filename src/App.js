@@ -568,7 +568,7 @@ export default function FXAngel() {
             </div>
 
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-              {[["HIGH", "#ff4757"], ["MEDIUM", "#ffa502"], ["LOW", "#8b949e"]].map(([label, color]) => (
+              {[["HIGH", "#ff4757"]].map(([label, color]) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <div style={{ width: 7, height: 7, borderRadius: 2, background: color }} />
                   <span style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>{label}</span>
@@ -582,7 +582,7 @@ export default function FXAngel() {
               </div>
             ) : (
               <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: "4px 12px" }}>
-                {news.map((item, i) => <NewsRow key={i} item={item} />)}
+                {news.filter(item => item.impact === "high").map((item, i) => <NewsRow key={i} item={item} />)}
               </div>
             )}
           </div>
