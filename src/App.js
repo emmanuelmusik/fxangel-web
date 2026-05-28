@@ -752,7 +752,7 @@ export default function FXAngel() {
                         borderRadius: 8, padding: "8px 12px",
                       }}>
                         <div style={{ color: "#ffa502", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
-                          ⚠️ CONFIDENCE BELOW 70% — NO SIGNAL GENERATED
+                          ⚠️ CONFIDENCE BELOW 51% — NO SIGNAL GENERATED
                         </div>
                       </div>
                     )}
