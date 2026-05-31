@@ -5,6 +5,106 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // Backend URL — deployed on Railway
 const API_BASE = "https://fxangel-backend-production.up.railway.app";
 
+// ─── PDF DOWNLOAD ─────────────────────────────────
+// Loads jsPDF from CDN and generates a trade history report
+async function downloadHistoryPDF(historyData) {
+  // Load jsPDF if not already loaded
+  if (!window.jspdf) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const trades = historyData.trades || [];
+  const stats = historyData.stats || {};
+
+  // Header
+  doc.setFontSize(18);
+  doc.setTextColor(255, 71, 87);
+  doc.text("FXAngel — Trade History Report", 14, 18);
+
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25);
+
+  // Summary stats
+  doc.setFontSize(11);
+  doc.setTextColor(0);
+  doc.text(`Total P&L: $${stats.totalPnl ?? 0}`, 14, 35);
+  doc.text(`Win Rate: ${stats.winRate ?? 0}%`, 70, 35);
+  doc.text(`Wins/Losses: ${stats.wins ?? 0}/${stats.losses ?? 0}`, 130, 35);
+  doc.text(`Total Trades: ${trades.length}`, 14, 42);
+
+  // Table header
+  let y = 54;
+  doc.setFillColor(255, 71, 87);
+  doc.rect(14, y - 5, 182, 7, "F");
+  doc.setTextColor(255);
+  doc.setFontSize(8);
+  doc.text("Date", 16, y);
+  doc.text("Pair", 50, y);
+  doc.text("Dir", 78, y);
+  doc.text("Entry", 95, y);
+  doc.text("Close", 120, y);
+  doc.text("PnL", 150, y);
+  doc.text("Reason", 170, y);
+
+  // Table rows
+  doc.setTextColor(0);
+  y += 8;
+  trades.forEach((t) => {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    const pnl = parseFloat(t.pnl);
+    if (pnl >= 0) doc.setTextColor(0, 150, 80);
+    else doc.setTextColor(200, 40, 50);
+
+    const date = new Date(t.closeTime).toLocaleDateString();
+    doc.setTextColor(60);
+    doc.text(date, 16, y);
+    doc.text(`${t.pair}`.slice(0, 12), 50, y);
+    doc.text(t.direction, 78, y);
+    doc.text(`${t.entry ?? "-"}`, 95, y);
+    doc.text(`${t.closePrice ?? "-"}`, 120, y);
+    doc.setTextColor(pnl >= 0 ? 0 : 200, pnl >= 0 ? 150 : 40, pnl >= 0 ? 80 : 50);
+    doc.text(`${pnl >= 0 ? "+" : ""}${pnl}`, 150, y);
+    doc.setTextColor(120);
+    doc.text(`${t.reason ?? ""}`.slice(0, 14), 170, y);
+    y += 6;
+  });
+
+  doc.save(`FXAngel_Trades_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// ─── TIME HELPER — uses system local time ─────────
+function formatLocalTime(isoString) {
+  if (!isoString) return "--:--";
+  return new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatLocalDateTime(isoString) {
+  if (!isoString) return "--";
+  const d = new Date(isoString);
+  return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }) +
+    " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getLocalTimeString() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getLocalDateString() {
+  return new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+}
+
 const FX_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
 const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD", "IOTA/USD", "DOGE/USD", "ETC/USD"];
 const PAIRS = [...FX_PAIRS, ...CRYPTO_PAIRS];
@@ -61,7 +161,7 @@ function SignalCard({ signal, expanded, onToggle }) {
   };
   const st = statusMap[signal.status] || statusMap.active;
   const sltp = signal.sltp || {};
-  const timeStr = signal.time ? new Date(signal.time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+  const timeStr = signal.time ? formatLocalTime(signal.time) : "--:--";
 
   return (
     <div onClick={onToggle} style={{
@@ -232,6 +332,7 @@ export default function FXAngel() {
   const [signals, setSignals] = useState([]);
   const [news, setNews] = useState([]);
   const [serverStatus, setServerStatus] = useState(null);
+  const [tradeHistory, setTradeHistory] = useState(null);
   const [connected, setConnected] = useState(false);
   const [notification, setNotification] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -245,11 +346,12 @@ export default function FXAngel() {
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
-    const [priceData, signalData, newsData, statusData] = await Promise.all([
+    const [priceData, signalData, newsData, statusData, historyData] = await Promise.all([
       apiFetch("/api/prices"),
       apiFetch("/api/signals"),
       apiFetch("/api/news"),
       apiFetch("/api/status"),
+      apiFetch("/api/history"),
     ]);
 
     if (priceData?.prices) { setPrices(priceData.prices); setConnected(true); }
@@ -268,6 +370,7 @@ export default function FXAngel() {
 
     if (newsData?.news) setNews(newsData.news);
     if (statusData) setServerStatus(statusData);
+    if (historyData) setTradeHistory(historyData);
   }, []);
 
   // ── WebSocket for real-time prices and signals ──────────────
@@ -381,6 +484,7 @@ export default function FXAngel() {
 
   const tabs = [
     { id: "signals", label: "Signals", icon: "⚡" },
+    { id: "history", label: "History", icon: "📋" },
     { id: "news", label: "News", icon: "📰" },
     { id: "analysis", label: "AI TA", icon: "🧠" },
     { id: "settings", label: "Settings", icon: "⚙️" },
@@ -438,7 +542,7 @@ export default function FXAngel() {
           <div style={{ textAlign: "right" }}>
             <StatusDot connected={connected} />
             <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginTop: 2 }}>
-              {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} GMT
+              {getLocalTimeString()}
             </div>
           </div>
         </div>
@@ -538,16 +642,93 @@ export default function FXAngel() {
           </div>
         )}
 
-        {/* ── NEWS TAB ── */}
-        {activeTab === "news" && (
+        {/* ── HISTORY TAB ── */}
+        {activeTab === "history" && (
           <div>
+            <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>TRADE HISTORY</div>
+            <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
+              Closed trades — FX & Crypto
+            </div>
+
+            {tradeHistory?.trades?.length > 0 && (
+              <button
+                onClick={() => downloadHistoryPDF(tradeHistory)}
+                style={{
+                  width: "100%", marginBottom: 14, padding: "10px",
+                  background: "#ff4757", border: "none", borderRadius: 10,
+                  color: "#fff", fontFamily: "'Space Mono', monospace",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}>
+                📄 Download PDF Report
+              </button>
+            )}
+
+            {tradeHistory?.stats && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>TOTAL P&L</div>
+                  <div style={{ color: tradeHistory.stats.totalPnl >= 0 ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
+                    {tradeHistory.stats.totalPnl >= 0 ? "+" : ""}{tradeHistory.stats.totalPnl}
+                  </div>
+                </div>
+                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>WIN RATE</div>
+                  <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
+                    {tradeHistory.stats.winRate}%
+                  </div>
+                </div>
+                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>W / L</div>
+                  <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
+                    {tradeHistory.stats.wins}/{tradeHistory.stats.losses}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!tradeHistory?.trades || tradeHistory.trades.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
+                {connected ? "No closed trades yet" : "Backend offline"}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {tradeHistory.trades.map((t, i) => {
+                  const isProfit = parseFloat(t.pnl) >= 0;
+                  return (
+                    <div key={i} style={{ background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid ${isProfit ? "#00e5a0" : "#ff4757"}`, borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ color: t.direction === "BUY" ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>
+                            {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
+                          </span>
+                          <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
+                          <span style={{ color: "#8b949e", fontSize: 8, fontFamily: "'Space Mono', monospace", background: "#161b22", padding: "2px 5px", borderRadius: 4 }}>{t.assetClass}</span>
+                        </div>
+                        <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
+                          {isProfit ? "+" : ""}{t.pnl}{t.pips !== undefined ? ` (${t.pips}p)` : ""}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#8b949e", fontFamily: "'Space Mono', monospace" }}>
+                        <span>In: {t.entry} → Out: {t.closePrice}</span>
+                        <span>{t.reason}</span>
+                      </div>
+                      <div style={{ fontSize: 8, color: "#5a6573", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>
+                        {new Date(t.closeTime).toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>ECONOMIC CALENDAR</div>
             <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+              {getLocalDateString()}
             </div>
 
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-              {[["HIGH", "#ff4757"], ["MEDIUM", "#ffa502"], ["LOW", "#8b949e"]].map(([label, color]) => (
+              {[["HIGH", "#ff4757"]].map(([label, color]) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <div style={{ width: 7, height: 7, borderRadius: 2, background: color }} />
                   <span style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>{label}</span>
@@ -561,7 +742,7 @@ export default function FXAngel() {
               </div>
             ) : (
               <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: "4px 12px" }}>
-                {news.map((item, i) => <NewsRow key={i} item={item} />)}
+                {news.filter(item => item.impact === "high").map((item, i) => <NewsRow key={i} item={item} />)}
               </div>
             )}
           </div>
@@ -642,7 +823,7 @@ export default function FXAngel() {
                 ) : (
                   <>
                     <div style={{ color: "#58a6ff", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
-                      🧠 AI ANALYSIS · {selectedPair} · {new Date().toLocaleTimeString()}
+                      🧠 AI ANALYSIS · {selectedPair} · {getLocalTimeString()}
                     </div>
                     <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                       <div style={{
@@ -731,7 +912,7 @@ export default function FXAngel() {
                         borderRadius: 8, padding: "8px 12px",
                       }}>
                         <div style={{ color: "#ffa502", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>
-                          ⚠️ CONFIDENCE BELOW 70% — NO SIGNAL GENERATED
+                          ⚠️ CONFIDENCE BELOW 51% — NO SIGNAL GENERATED
                         </div>
                       </div>
                     )}
