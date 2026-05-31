@@ -722,6 +722,10 @@ export default function FXAngel() {
             )}
           </div>
         )}
+
+        {/* ── NEWS TAB ── */}
+        {activeTab === "news" && (
+          <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>ECONOMIC CALENDAR</div>
             <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
               {getLocalDateString()}
