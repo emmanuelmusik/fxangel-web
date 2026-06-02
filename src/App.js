@@ -116,7 +116,7 @@ function getLocalDateString() {
 }
 
 const FX_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
-const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD", "IOTA/USD", "DOGE/USD", "ETC/USD"];
+const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "LTC/USD", "AVAX/USD", "ADA/USD", "DOGE/USD"];
 const PAIRS = [...FX_PAIRS, ...CRYPTO_PAIRS];
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
