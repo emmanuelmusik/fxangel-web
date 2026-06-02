@@ -776,7 +776,11 @@ export default function FXAngel() {
 
             {news.length === 0 ? (
               <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
-                {connected ? "Loading calendar..." : "Backend offline — no news data"}
+                {connected ? "No calendar data available — sources temporarily unavailable" : "Backend offline — no news data"}
+              </div>
+            ) : news.filter(item => item.impact === "high").length === 0 ? (
+              <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
+                ✅ No high-impact events scheduled right now
               </div>
             ) : (
               <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: "4px 12px" }}>
