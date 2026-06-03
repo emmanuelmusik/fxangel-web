@@ -337,6 +337,7 @@ function StatusDot({ connected }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function FXAngel() {
   const [activeTab, setActiveTab] = useState("signals");
+  const [historyFilter, setHistoryFilter] = useState("ALL");
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
@@ -659,7 +660,6 @@ export default function FXAngel() {
 
             {/* FX / Crypto / All sub-tabs */}
             {(() => {
-              const [historyFilter, setHistoryFilter] = React.useState("ALL");
               const allTrades = tradeHistory?.trades || [];
               const filtered = historyFilter === "ALL" ? allTrades
                 : allTrades.filter(t => t.assetClass === historyFilter);
