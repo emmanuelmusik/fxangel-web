@@ -656,104 +656,125 @@ export default function FXAngel() {
         {activeTab === "history" && (
           <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>TRADE HISTORY</div>
-            <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
-              Closed trades — FX & Crypto
-            </div>
 
-            {/* Download buttons — always visible */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <button
-                onClick={() => downloadHistoryPDF(tradeHistory, "FX")}
-                style={{
-                  flex: 1, padding: "10px 6px",
-                  background: "#00e5a015", border: "1px solid #00e5a040",
-                  borderRadius: 10, color: "#00e5a0",
-                  fontFamily: "'Space Mono', monospace",
-                  fontSize: 10, fontWeight: 700, cursor: "pointer",
-                }}>
-                📄 FX Report
-              </button>
-              <button
-                onClick={() => downloadHistoryPDF(tradeHistory, "CRYPTO")}
-                style={{
-                  flex: 1, padding: "10px 6px",
-                  background: "#ff475715", border: "1px solid #ff475740",
-                  borderRadius: 10, color: "#ff4757",
-                  fontFamily: "'Space Mono', monospace",
-                  fontSize: 10, fontWeight: 700, cursor: "pointer",
-                }}>
-                📄 Crypto Report
-              </button>
-              <button
-                onClick={() => downloadHistoryPDF(tradeHistory, "ALL")}
-                style={{
-                  flex: 1, padding: "10px 6px",
-                  background: "#ffffff10", border: "1px solid #ffffff20",
-                  borderRadius: 10, color: "#fff",
-                  fontFamily: "'Space Mono', monospace",
-                  fontSize: 10, fontWeight: 700, cursor: "pointer",
-                }}>
-                📄 All
-              </button>
-            </div>
+            {/* FX / Crypto / All sub-tabs */}
+            {(() => {
+              const [historyFilter, setHistoryFilter] = React.useState("ALL");
+              const allTrades = tradeHistory?.trades || [];
+              const filtered = historyFilter === "ALL" ? allTrades
+                : allTrades.filter(t => t.assetClass === historyFilter);
+              const totalPnl = filtered.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
+              const wins = filtered.filter(t => parseFloat(t.pnl) > 0).length;
+              const losses = filtered.filter(t => parseFloat(t.pnl) < 0).length;
+              const winRate = filtered.length > 0 ? ((wins / filtered.length) * 100).toFixed(0) : 0;
 
-            {tradeHistory?.stats && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>TOTAL P&L</div>
-                  <div style={{ color: tradeHistory.stats.totalPnl >= 0 ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
-                    {tradeHistory.stats.totalPnl >= 0 ? "+" : ""}{tradeHistory.stats.totalPnl}
+              return (
+                <>
+                  {/* Sub-tab selector */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                    {[
+                      { id: "ALL", label: "All", color: "#fff" },
+                      { id: "FX", label: "💱 FX", color: "#00e5a0" },
+                      { id: "CRYPTO", label: "🪙 Crypto", color: "#ffa502" },
+                    ].map(tab => (
+                      <button key={tab.id} onClick={() => setHistoryFilter(tab.id)} style={{
+                        flex: 1, padding: "8px 6px",
+                        background: historyFilter === tab.id ? `${tab.color}20` : "#0d1117",
+                        border: `1px solid ${historyFilter === tab.id ? tab.color : "#21262d"}`,
+                        borderRadius: 10, color: historyFilter === tab.id ? tab.color : "#8b949e",
+                        fontFamily: "'Space Mono', monospace", fontSize: 10,
+                        fontWeight: 700, cursor: "pointer",
+                      }}>{tab.label}</button>
+                    ))}
                   </div>
-                </div>
-                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>WIN RATE</div>
-                  <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
-                    {tradeHistory.stats.winRate}%
-                  </div>
-                </div>
-                <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>W / L</div>
-                  <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
-                    {tradeHistory.stats.wins}/{tradeHistory.stats.losses}
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {!tradeHistory?.trades || tradeHistory.trades.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
-                {connected ? "No closed trades yet" : "Backend offline"}
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {tradeHistory.trades.map((t, i) => {
-                  const isProfit = parseFloat(t.pnl) >= 0;
-                  return (
-                    <div key={i} style={{ background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid ${isProfit ? "#00e5a0" : "#ff4757"}`, borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ color: t.direction === "BUY" ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>
-                            {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
-                          </span>
-                          <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
-                          <span style={{ color: "#8b949e", fontSize: 8, fontFamily: "'Space Mono', monospace", background: "#161b22", padding: "2px 5px", borderRadius: 4 }}>{t.assetClass}</span>
-                        </div>
-                        <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
-                          {isProfit ? "+" : ""}{t.pnl}{t.pips !== undefined ? ` (${t.pips}p)` : ""}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#8b949e", fontFamily: "'Space Mono', monospace" }}>
-                        <span>In: {t.entry} → Out: {t.closePrice}</span>
-                        <span>{t.reason}</span>
-                      </div>
-                      <div style={{ fontSize: 8, color: "#5a6573", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>
-                        {new Date(t.closeTime).toLocaleString()}
+                  {/* Stats for current filter */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>TOTAL P&L</div>
+                      <div style={{ color: totalPnl >= 0 ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
+                        {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>WIN RATE</div>
+                      <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>{winRate}%</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>W / L</div>
+                      <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>{wins}/{losses}</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>TRADES</div>
+                      <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>{filtered.length}</div>
+                    </div>
+                  </div>
+
+                  {/* Download buttons */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "FX")} style={{
+                      flex: 1, padding: "8px 6px", background: "#00e5a015",
+                      border: "1px solid #00e5a040", borderRadius: 10, color: "#00e5a0",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
+                    }}>📄 FX PDF</button>
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "CRYPTO")} style={{
+                      flex: 1, padding: "8px 6px", background: "#ffa50215",
+                      border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
+                    }}>📄 Crypto PDF</button>
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "ALL")} style={{
+                      flex: 1, padding: "8px 6px", background: "#ffffff10",
+                      border: "1px solid #ffffff20", borderRadius: 10, color: "#fff",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
+                    }}>📄 All PDF</button>
+                  </div>
+
+                  {/* Trade list */}
+                  {filtered.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
+                      {connected ? `No ${historyFilter === "ALL" ? "" : historyFilter + " "}trades recorded yet` : "Backend offline"}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {filtered.map((t, i) => {
+                        const isProfit = parseFloat(t.pnl) >= 0;
+                        const isFX = t.assetClass === "FX";
+                        const accentColor = isFX ? "#00e5a0" : "#ffa502";
+                        return (
+                          <div key={i} style={{
+                            background: "#0d1117", border: "1px solid #21262d",
+                            borderLeft: `3px solid ${isProfit ? accentColor : "#ff4757"}`,
+                            borderRadius: 10, padding: "10px 12px"
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ color: t.direction === "BUY" ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>
+                                  {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
+                                </span>
+                                <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
+                                <span style={{ color: accentColor, fontSize: 8, fontFamily: "'Space Mono', monospace", background: `${accentColor}15`, padding: "2px 5px", borderRadius: 4 }}>
+                                  {isFX ? "💱 FX" : "🪙 CRYPTO"}
+                                </span>
+                              </div>
+                              <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
+                                {isProfit ? "+" : ""}{t.pnl}{t.pips !== undefined ? ` (${t.pips}p)` : ""}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#8b949e", fontFamily: "'Space Mono', monospace" }}>
+                              <span>In: {t.entry} → Out: {t.closePrice}</span>
+                              <span>{t.reason}</span>
+                            </div>
+                            <div style={{ fontSize: 8, color: "#5a6573", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>
+                              {new Date(t.closeTime).toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
