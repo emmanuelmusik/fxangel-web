@@ -338,7 +338,9 @@ function StatusDot({ connected }) {
 export default function FXAngel() {
   const [activeTab, setActiveTab] = useState("signals");
   const [historyFilter, setHistoryFilter] = useState("ALL");
-  const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL
+  const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
@@ -663,15 +665,23 @@ export default function FXAngel() {
             {(() => {
               const allTrades = tradeHistory?.trades || [];
 
-              // Period filter — Day (since midnight), Week (7 days), Month (30 days)
+              // Period filter
               const now = new Date();
               const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-              const periodCutoff =
-                historyPeriod === "DAY"   ? startOfDay :
-                historyPeriod === "WEEK"  ? now.getTime() - 7  * 24 * 60 * 60 * 1000 :
-                historyPeriod === "MONTH" ? now.getTime() - 30 * 24 * 60 * 60 * 1000 : 0;
-              const periodFiltered = periodCutoff === 0 ? allTrades
-                : allTrades.filter(t => new Date(t.closeTime || t.loggedAt).getTime() >= periodCutoff);
+              let periodFrom = 0;
+              let periodTo = Infinity;
+              if (historyPeriod === "DAY")   { periodFrom = startOfDay; }
+              else if (historyPeriod === "WEEK")  { periodFrom = now.getTime() - 7  * 24 * 60 * 60 * 1000; }
+              else if (historyPeriod === "MONTH") { periodFrom = now.getTime() - 30 * 24 * 60 * 60 * 1000; }
+              else if (historyPeriod === "CUSTOM") {
+                if (customFrom) periodFrom = new Date(customFrom).getTime();
+                if (customTo)   periodTo   = new Date(customTo).getTime() + 86400000 - 1; // include full end day
+              }
+
+              const periodFiltered = allTrades.filter(t => {
+                const ts = new Date(t.closeTime || t.loggedAt).getTime();
+                return ts >= periodFrom && ts <= periodTo;
+              });
 
               const filtered = historyFilter === "ALL" ? periodFiltered
                 : periodFiltered.filter(t => t.assetClass === historyFilter);
@@ -700,24 +710,66 @@ export default function FXAngel() {
                     ))}
                   </div>
 
-                  {/* Period selector — Day / Week / Month / All */}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                  {/* Period selector — Day / Week / Month / All / Custom */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     {[
-                      { id: "DAY", label: "📅 Today" },
-                      { id: "WEEK", label: "🗓 Week" },
-                      { id: "MONTH", label: "📆 Month" },
-                      { id: "ALL", label: "∞ All" },
+                      { id: "DAY",    label: "📅 Today" },
+                      { id: "WEEK",   label: "🗓 Week" },
+                      { id: "MONTH",  label: "📆 Month" },
+                      { id: "ALL",    label: "∞ All" },
+                      { id: "CUSTOM", label: "🔍 Custom" },
                     ].map(p => (
                       <button key={p.id} onClick={() => setHistoryPeriod(p.id)} style={{
-                        flex: 1, padding: "7px 4px",
+                        flex: 1, padding: "7px 2px",
                         background: historyPeriod === p.id ? "#58a6ff20" : "#0d1117",
                         border: `1px solid ${historyPeriod === p.id ? "#58a6ff" : "#21262d"}`,
                         borderRadius: 10, color: historyPeriod === p.id ? "#58a6ff" : "#8b949e",
-                        fontFamily: "'Space Mono', monospace", fontSize: 10,
+                        fontFamily: "'Space Mono', monospace", fontSize: 9,
                         fontWeight: 700, cursor: "pointer",
                       }}>{p.label}</button>
                     ))}
                   </div>
+
+                  {/* Custom date range inputs — only shown when CUSTOM selected */}
+                  {historyPeriod === "CUSTOM" && (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 4 }}>FROM</div>
+                        <input
+                          type="date"
+                          value={customFrom}
+                          onChange={e => setCustomFrom(e.target.value)}
+                          style={{
+                            width: "100%", padding: "8px 10px", background: "#0d1117",
+                            border: "1px solid #21262d", borderRadius: 8, color: "#fff",
+                            fontFamily: "'Space Mono', monospace", fontSize: 10,
+                            boxSizing: "border-box", colorScheme: "dark",
+                          }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", marginBottom: 4 }}>TO</div>
+                        <input
+                          type="date"
+                          value={customTo}
+                          onChange={e => setCustomTo(e.target.value)}
+                          style={{
+                            width: "100%", padding: "8px 10px", background: "#0d1117",
+                            border: "1px solid #21262d", borderRadius: 8, color: "#fff",
+                            fontFamily: "'Space Mono', monospace", fontSize: 10,
+                            boxSizing: "border-box", colorScheme: "dark",
+                          }}
+                        />
+                      </div>
+                      {(customFrom || customTo) && (
+                        <button onClick={() => { setCustomFrom(""); setCustomTo(""); }} style={{
+                          padding: "8px 10px", background: "#ff475720", border: "1px solid #ff475740",
+                          borderRadius: 8, color: "#ff4757", fontFamily: "'Space Mono', monospace",
+                          fontSize: 10, cursor: "pointer", alignSelf: "flex-end",
+                        }}>✕</button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Stats for current filter */}
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
