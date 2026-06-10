@@ -338,6 +338,7 @@ function StatusDot({ connected }) {
 export default function FXAngel() {
   const [activeTab, setActiveTab] = useState("signals");
   const [historyFilter, setHistoryFilter] = useState("ALL");
+  const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
@@ -661,8 +662,19 @@ export default function FXAngel() {
             {/* FX / Crypto / All sub-tabs */}
             {(() => {
               const allTrades = tradeHistory?.trades || [];
-              const filtered = historyFilter === "ALL" ? allTrades
-                : allTrades.filter(t => t.assetClass === historyFilter);
+
+              // Period filter — Day (since midnight), Week (7 days), Month (30 days)
+              const now = new Date();
+              const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+              const periodCutoff =
+                historyPeriod === "DAY"   ? startOfDay :
+                historyPeriod === "WEEK"  ? now.getTime() - 7  * 24 * 60 * 60 * 1000 :
+                historyPeriod === "MONTH" ? now.getTime() - 30 * 24 * 60 * 60 * 1000 : 0;
+              const periodFiltered = periodCutoff === 0 ? allTrades
+                : allTrades.filter(t => new Date(t.closeTime || t.loggedAt).getTime() >= periodCutoff);
+
+              const filtered = historyFilter === "ALL" ? periodFiltered
+                : periodFiltered.filter(t => t.assetClass === historyFilter);
               const totalPnl = filtered.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
               const wins = filtered.filter(t => parseFloat(t.pnl) > 0).length;
               const losses = filtered.filter(t => parseFloat(t.pnl) < 0).length;
@@ -685,6 +697,25 @@ export default function FXAngel() {
                         fontFamily: "'Space Mono', monospace", fontSize: 10,
                         fontWeight: 700, cursor: "pointer",
                       }}>{tab.label}</button>
+                    ))}
+                  </div>
+
+                  {/* Period selector — Day / Week / Month / All */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                    {[
+                      { id: "DAY", label: "📅 Today" },
+                      { id: "WEEK", label: "🗓 Week" },
+                      { id: "MONTH", label: "📆 Month" },
+                      { id: "ALL", label: "∞ All" },
+                    ].map(p => (
+                      <button key={p.id} onClick={() => setHistoryPeriod(p.id)} style={{
+                        flex: 1, padding: "7px 4px",
+                        background: historyPeriod === p.id ? "#58a6ff20" : "#0d1117",
+                        border: `1px solid ${historyPeriod === p.id ? "#58a6ff" : "#21262d"}`,
+                        borderRadius: 10, color: historyPeriod === p.id ? "#58a6ff" : "#8b949e",
+                        fontFamily: "'Space Mono', monospace", fontSize: 10,
+                        fontWeight: 700, cursor: "pointer",
+                      }}>{p.label}</button>
                     ))}
                   </div>
 
