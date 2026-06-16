@@ -7,7 +7,7 @@ const API_BASE = "https://fxangel-backend-production.up.railway.app";
 
 // ─── PDF DOWNLOAD ─────────────────────────────────
 // Loads jsPDF from CDN and generates a trade history report
-async function downloadHistoryPDF(historyData, filter = "ALL") {
+async function downloadHistoryPDF(historyData, filter = "ALL", periodLabel = "ALL", preFilteredTrades = null) {
   if (!window.jspdf) {
     await new Promise((resolve, reject) => {
       const script = document.createElement("script");
@@ -19,14 +19,20 @@ async function downloadHistoryPDF(historyData, filter = "ALL") {
   }
 
   const { jsPDF } = window.jspdf;
-  const allTrades = historyData?.trades || [];
-  const trades = filter === "ALL" ? allTrades : allTrades.filter(t => t.assetClass === filter);
+  // If the caller passes already-period-filtered trades (from the History tab),
+  // use those so the PDF matches exactly what's on screen. Otherwise fall back
+  // to the full history with just the asset-class filter.
+  const sourceTrades = preFilteredTrades !== null ? preFilteredTrades : (historyData?.trades || []);
+  const trades = filter === "ALL" ? sourceTrades : sourceTrades.filter(t => t.assetClass === filter);
 
   const totalPnl = trades.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
   const wins = trades.filter(t => parseFloat(t.pnl) > 0).length;
   const losses = trades.filter(t => parseFloat(t.pnl) < 0).length;
   const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : 0;
-  const title = filter === "ALL" ? "All Trades" : filter === "FX" ? "FX Trades" : "Crypto Trades";
+  const assetTitle = filter === "ALL" ? "All Trades" : filter === "FX" ? "FX Trades" : "Crypto Trades";
+  const periodTitleMap = { ALL: "All Time", DAY: "Today", WEEK: "This Week", MONTH: "This Month", CUSTOM: "Custom Range" };
+  const periodTitle = periodTitleMap[periodLabel] || "All Time";
+  const title = `${assetTitle} — ${periodTitle}`;
 
   const doc = new jsPDF();
 
@@ -50,7 +56,7 @@ async function downloadHistoryPDF(historyData, filter = "ALL") {
     doc.setFontSize(12);
     doc.setTextColor(150);
     doc.text(`No ${title.toLowerCase()} recorded yet.`, 14, 60);
-    doc.save(`FXAngel_${filter}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 10)}.pdf`);
     return;
   }
 
@@ -91,7 +97,7 @@ async function downloadHistoryPDF(historyData, filter = "ALL") {
     y += 7;
   });
 
-  doc.save(`FXAngel_${filter}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ─── TIME HELPER — uses system local time ─────────
@@ -795,17 +801,17 @@ export default function FXAngel() {
 
                   {/* Download buttons */}
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "FX")} style={{
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "FX", historyPeriod, periodFiltered)} style={{
                       flex: 1, padding: "8px 6px", background: "#00e5a015",
                       border: "1px solid #00e5a040", borderRadius: 10, color: "#00e5a0",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
                     }}>📄 FX PDF</button>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "CRYPTO")} style={{
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "CRYPTO", historyPeriod, periodFiltered)} style={{
                       flex: 1, padding: "8px 6px", background: "#ffa50215",
                       border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
                     }}>📄 Crypto PDF</button>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "ALL")} style={{
+                    <button onClick={() => downloadHistoryPDF(tradeHistory, "ALL", historyPeriod, periodFiltered)} style={{
                       flex: 1, padding: "8px 6px", background: "#ffffff10",
                       border: "1px solid #ffffff20", borderRadius: 10, color: "#fff",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
