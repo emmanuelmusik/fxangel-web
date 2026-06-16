@@ -56,7 +56,7 @@ async function downloadHistoryPDF(historyData, filter = "ALL", periodLabel = "AL
     doc.setFontSize(12);
     doc.setTextColor(150);
     doc.text(`No ${title.toLowerCase()} recorded yet.`, 14, 60);
-    doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-")}.pdf`);
     return;
   }
 
@@ -67,11 +67,12 @@ async function downloadHistoryPDF(historyData, filter = "ALL", periodLabel = "AL
   doc.setTextColor(255);
   doc.setFontSize(8);
   doc.text("Date", 16, y);
-  doc.text("Pair", 50, y);
-  doc.text("Dir", 78, y);
+  doc.text("Time", 38, y);
+  doc.text("Pair", 58, y);
+  doc.text("Dir", 80, y);
   doc.text("Entry", 95, y);
   doc.text("Close", 120, y);
-  doc.text("PnL ($)", 150, y);
+  doc.text("PnL ($)", 148, y);
   doc.text("Reason", 170, y);
 
   // Table rows
@@ -83,21 +84,24 @@ async function downloadHistoryPDF(historyData, filter = "ALL", periodLabel = "AL
       doc.rect(14, y - 4, 182, 6, "F");
     }
     const pnl = parseFloat(t.pnl);
-    const date = new Date(t.closeTime).toLocaleDateString();
+    const closeDt = new Date(t.closeTime);
+    const date = closeDt.toLocaleDateString();
+    const time = closeDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     doc.setTextColor(60);
     doc.text(date, 16, y);
-    doc.text(`${t.pair}`.slice(0, 10), 50, y);
-    doc.text(t.direction, 78, y);
+    doc.text(time, 38, y);
+    doc.text(`${t.pair}`.slice(0, 9), 58, y);
+    doc.text(t.direction, 80, y);
     doc.text(`${t.entry ?? "-"}`, 95, y);
     doc.text(`${t.closePrice ?? "-"}`, 120, y);
     doc.setTextColor(pnl >= 0 ? 0 : 200, pnl >= 0 ? 150 : 40, pnl >= 0 ? 80 : 50);
-    doc.text(`${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`, 150, y);
+    doc.text(`${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`, 148, y);
     doc.setTextColor(120);
-    doc.text(`${t.reason ?? ""}`.slice(0, 14), 170, y);
+    doc.text(`${t.reason ?? ""}`.slice(0, 12), 170, y);
     y += 7;
   });
 
-  doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`FXAngel_${filter}_${periodLabel}_${new Date().toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-")}.pdf`);
 }
 
 // ─── TIME HELPER — uses system local time ─────────
