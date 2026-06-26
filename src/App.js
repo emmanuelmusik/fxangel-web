@@ -341,6 +341,8 @@ export default function FXAngel() {
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [peaksSlOnly, setPeaksSlOnly] = useState(false);
+  const [peaksSort, setPeaksSort] = useState("newest"); // newest | giveback | peak
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
@@ -499,6 +501,7 @@ export default function FXAngel() {
   const tabs = [
     { id: "signals", label: "Signals", icon: "⚡" },
     { id: "history", label: "History", icon: "📋" },
+    { id: "peaks", label: "Peaks", icon: "📈" },
     { id: "news", label: "News", icon: "📰" },
     { id: "analysis", label: "AI TA", icon: "🧠" },
     { id: "settings", label: "Settings", icon: "⚙️" },
@@ -868,6 +871,176 @@ export default function FXAngel() {
                             </div>
                             <div style={{ fontSize: 8, color: "#5a6573", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>
                               {new Date(t.closeTime).toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ── PEAKS TAB (how far each trade ran before it closed) ── */}
+        {activeTab === "peaks" && (
+          <div>
+            <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>RUN &amp; GIVE-BACK</div>
+            <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
+              How far each crypto trade ran in your favor before it closed
+            </div>
+
+            {(() => {
+              const allTrades = tradeHistory?.trades || [];
+              const cryptoTrades = allTrades.filter(t => t.assetClass === "CRYPTO");
+              const withPeak = cryptoTrades.filter(t => t.peakProfit !== null && t.peakProfit !== undefined);
+
+              const favorableDist = (entry, price, direction) =>
+                direction === "BUY" ? (price - entry) : (entry - price);
+
+              const computeBar = (t) => {
+                const entry = parseFloat(t.entry);
+                const close = parseFloat(t.closePrice);
+                const peakPrice = parseFloat(t.peakPrice);
+                const peakProfit = parseFloat(t.peakProfit);
+                if (Number.isNaN(entry) || Number.isNaN(close) || Number.isNaN(peakPrice)) return null;
+                const peakDist = favorableDist(entry, peakPrice, t.direction);
+                const closeDist = favorableDist(entry, close, t.direction);
+                const scale = Math.max(Math.abs(peakDist), Math.abs(closeDist), 1e-9);
+                const peakPct = 50 + (peakDist / scale) * 44;
+                const closePct = 50 + (closeDist / scale) * 44;
+                const giveBack = peakProfit - parseFloat(t.pnl);
+                return { peakPct, closePct, giveBack, peakDist };
+              };
+
+              let rows = peaksSlOnly ? withPeak.filter(t => t.reason === "Stop Loss hit") : withPeak;
+
+              if (peaksSort === "giveback") {
+                rows = rows.map(t => ({ t, bar: computeBar(t) }))
+                           .filter(x => x.bar)
+                           .sort((a, b) => b.bar.giveBack - a.bar.giveBack)
+                           .map(x => x.t);
+              } else if (peaksSort === "peak") {
+                rows = [...rows].sort((a, b) => parseFloat(b.peakProfit) - parseFloat(a.peakProfit));
+              }
+              // "newest" — leave as-is, /api/history already returns newest-first
+
+              const avgGiveback = (() => {
+                const slHits = withPeak.filter(t => t.reason === "Stop Loss hit");
+                const bars = slHits.map(computeBar).filter(b => b && b.giveBack > 0);
+                if (bars.length === 0) return null;
+                return bars.reduce((s, b) => s + b.giveBack, 0) / bars.length;
+              })();
+
+              return (
+                <>
+                  {/* Stats */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>WITH PEAK DATA</div>
+                      <div style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>{withPeak.length}</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#0d1117", border: "1px solid #21262d", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>AVG GIVE-BACK (SL)</div>
+                      <div style={{ color: "#ffa502", fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700 }}>
+                        {avgGiveback !== null ? `$${avgGiveback.toFixed(2)}` : "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Controls */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                    <button onClick={() => setPeaksSlOnly(!peaksSlOnly)} style={{
+                      flex: 1, padding: "8px 6px",
+                      background: peaksSlOnly ? "#ff475720" : "#0d1117",
+                      border: `1px solid ${peaksSlOnly ? "#ff4757" : "#21262d"}`,
+                      borderRadius: 10, color: peaksSlOnly ? "#ff4757" : "#8b949e",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
+                    }}>🛑 SL hits only</button>
+                    <select value={peaksSort} onChange={e => setPeaksSort(e.target.value)} style={{
+                      flex: 1, padding: "8px 6px", background: "#0d1117",
+                      border: "1px solid #21262d", borderRadius: 10, color: "#8b949e",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700,
+                    }}>
+                      <option value="newest">Newest first</option>
+                      <option value="giveback">Biggest give-back</option>
+                      <option value="peak">Highest peak</option>
+                    </select>
+                  </div>
+
+                  {/* List */}
+                  {rows.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
+                      {withPeak.length === 0
+                        ? "No peak data yet — only crypto trades closed since the latest update are tracked"
+                        : "No trades match this filter"}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {rows.map((t, i) => {
+                        const bar = computeBar(t);
+                        const isProfit = parseFloat(t.pnl) >= 0;
+                        return (
+                          <div key={i} style={{
+                            background: "#0d1117", border: "1px solid #21262d",
+                            borderLeft: `3px solid ${isProfit ? "#00e5a0" : "#ff4757"}`,
+                            borderRadius: 10, padding: "10px 12px"
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ color: t.direction === "BUY" ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>
+                                  {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
+                                </span>
+                                <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
+                              </div>
+                              <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
+                                {isProfit ? "+" : ""}{t.pnl}
+                              </span>
+                            </div>
+
+                            {bar && (
+                              <>
+                                <div style={{ position: "relative", height: 16, background: "#161b22", borderRadius: 8, marginBottom: 4 }}>
+                                  <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "#30363d" }} />
+                                  <div style={{
+                                    position: "absolute", top: 6, height: 4, borderRadius: 2,
+                                    background: "#ffa50230",
+                                    left: `${Math.min(50, bar.peakPct)}%`,
+                                    width: `${Math.abs(bar.peakPct - 50)}%`,
+                                  }} />
+                                  {bar.giveBack > 0.05 && (
+                                    <div style={{
+                                      position: "absolute", top: 7, height: 2,
+                                      background: "repeating-linear-gradient(90deg, #ff4757 0 4px, transparent 4px 7px)",
+                                      left: `${Math.min(bar.peakPct, bar.closePct)}%`,
+                                      width: `${Math.abs(bar.peakPct - bar.closePct)}%`,
+                                    }} />
+                                  )}
+                                  <div style={{
+                                    position: "absolute", top: 2, width: 10, height: 10, borderRadius: "50%",
+                                    background: "#ffa502", border: "2px solid #0d1117",
+                                    left: `${bar.peakPct}%`, transform: "translateX(-50%)", zIndex: 2,
+                                  }} />
+                                  <div style={{
+                                    position: "absolute", top: 2, width: 10, height: 10, borderRadius: "50%",
+                                    background: isProfit ? "#00e5a0" : "#ff4757", border: "2px solid #0d1117",
+                                    left: `${bar.closePct}%`, transform: "translateX(-50%)", zIndex: 3,
+                                  }} />
+                                </div>
+                                <div style={{ fontSize: 9, color: bar.giveBack > 0.5 ? "#ffa502" : "#8b949e", fontFamily: "'Space Mono', monospace" }}>
+                                  {bar.peakDist <= 0
+                                    ? "never went green"
+                                    : bar.giveBack > 0.05
+                                      ? `peak +$${parseFloat(t.peakProfit).toFixed(2)} · gave back $${bar.giveBack.toFixed(2)}`
+                                      : `peak +$${parseFloat(t.peakProfit).toFixed(2)} · captured cleanly`}
+                                </div>
+                              </>
+                            )}
+
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#8b949e", fontFamily: "'Space Mono', monospace", marginTop: 6 }}>
+                              <span>In: {t.entry} → Out: {t.closePrice}</span>
+                              <span>{t.reason}</span>
                             </div>
                           </div>
                         );
