@@ -94,6 +94,112 @@ async function downloadHistoryPDF(historyData, filter = "ALL") {
   doc.save(`FXAngel_${filter}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+// ─── PEAKS / GIVE-BACK PDF ────────────────────────
+// Same lazy-load pattern as downloadHistoryPDF. Reports how far each
+// crypto trade ran in its favor (peak) before it actually closed.
+async function downloadPeaksPDF(historyData, slOnly = false) {
+  if (!window.jspdf) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const { jsPDF } = window.jspdf;
+  const allTrades = historyData?.trades || [];
+  const cryptoTrades = allTrades.filter(t => t.assetClass === "CRYPTO");
+  let trades = cryptoTrades.filter(t => t.peakProfit !== null && t.peakProfit !== undefined);
+  if (slOnly) trades = trades.filter(t => t.reason === "Stop Loss hit");
+
+  const favorableDist = (entry, price, direction) =>
+    direction === "BUY" ? (price - entry) : (entry - price);
+
+  const rows = trades.map(t => {
+    const entry = parseFloat(t.entry);
+    const peakPrice = parseFloat(t.peakPrice);
+    const peakProfit = parseFloat(t.peakProfit);
+    const pnl = parseFloat(t.pnl);
+    const peakDist = favorableDist(entry, peakPrice, t.direction);
+    const giveBack = Math.max(0, peakProfit - pnl);
+    return { ...t, peakProfit, pnl, giveBack, neverGreen: peakDist <= 0 };
+  });
+
+  const slHits = rows.filter(t => t.reason === "Stop Loss hit");
+  const givebackOnSl = slHits.filter(t => t.giveBack > 0);
+  const avgGiveback = givebackOnSl.length > 0
+    ? givebackOnSl.reduce((s, t) => s + t.giveBack, 0) / givebackOnSl.length
+    : 0;
+  const totalGiveback = rows.reduce((s, t) => s + t.giveBack, 0);
+  const title = slOnly ? "Stop-Loss Hits — Run & Give-Back" : "Run & Give-Back Report";
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.setTextColor(255, 165, 2);
+  doc.text(`FXAngel — ${title}`, 14, 18);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25);
+
+  doc.setFontSize(11);
+  doc.setTextColor(0);
+  doc.text(`Trades with peak data: ${rows.length}`, 14, 35);
+  doc.text(`Avg give-back (SL hits): $${avgGiveback.toFixed(2)}`, 90, 35);
+  doc.text(`Total give-back: $${totalGiveback.toFixed(2)}`, 14, 42);
+
+  if (rows.length === 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(150);
+    doc.text("No trades with peak data yet.", 14, 60);
+    doc.save(`FXAngel_Peaks_${new Date().toISOString().slice(0, 10)}.pdf`);
+    return;
+  }
+
+  let y = 54;
+  doc.setFillColor(255, 165, 2);
+  doc.rect(14, y - 5, 182, 7, "F");
+  doc.setTextColor(255);
+  doc.setFontSize(7.5);
+  doc.text("Date", 16, y);
+  doc.text("Pair", 42, y);
+  doc.text("Dir", 64, y);
+  doc.text("Entry", 78, y);
+  doc.text("Peak ($)", 98, y);
+  doc.text("PnL ($)", 124, y);
+  doc.text("Gave back", 150, y);
+  doc.text("Reason", 174, y);
+
+  y += 8;
+  rows.forEach((t, idx) => {
+    if (y > 280) { doc.addPage(); y = 20; }
+    if (idx % 2 === 0) {
+      doc.setFillColor(250, 245, 230);
+      doc.rect(14, y - 4, 182, 6, "F");
+    }
+    const date = new Date(t.closeTime).toLocaleDateString();
+    doc.setFontSize(7);
+    doc.setTextColor(60);
+    doc.text(date, 16, y);
+    doc.text(`${t.pair}`.slice(0, 9), 42, y);
+    doc.text(t.direction, 64, y);
+    doc.text(`${t.entry ?? "-"}`, 78, y);
+    doc.setTextColor(180, 130, 0);
+    doc.text(`+${t.peakProfit.toFixed(2)}`, 98, y);
+    doc.setTextColor(t.pnl >= 0 ? 0 : 200, t.pnl >= 0 ? 150 : 40, t.pnl >= 0 ? 80 : 50);
+    doc.text(`${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}`, 124, y);
+    doc.setTextColor(t.giveBack > 0.5 ? 200 : 150, t.giveBack > 0.5 ? 80 : 150, 40);
+    doc.text(t.neverGreen ? "never green" : (t.giveBack > 0.05 ? `$${t.giveBack.toFixed(2)}` : "clean"), 150, y);
+    doc.setTextColor(120);
+    doc.text(`${t.reason ?? ""}`.slice(0, 11), 174, y);
+    y += 7;
+  });
+
+  doc.save(`FXAngel_Peaks_${slOnly ? "SLOnly_" : ""}${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
 // ─── TIME HELPER — uses system local time ─────────
 function formatLocalTime(isoString) {
   if (!isoString) return "--:--";
@@ -967,6 +1073,15 @@ export default function FXAngel() {
                       <option value="giveback">Biggest give-back</option>
                       <option value="peak">Highest peak</option>
                     </select>
+                  </div>
+
+                  {/* Export */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <button onClick={() => downloadPeaksPDF(tradeHistory, peaksSlOnly)} style={{
+                      flex: 1, padding: "8px 6px", background: "#ffa50215",
+                      border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
+                    }}>📄 Export {peaksSlOnly ? "SL Hits " : ""}PDF</button>
                   </div>
 
                   {/* List */}
