@@ -440,6 +440,58 @@ function StatusDot({ connected }) {
   );
 }
 
+// ─── LOCAL HISTORY CACHE ───────────────────────────────────────
+// Persists trade history + peak data to localStorage so it survives
+// Railway restarts and deploys. Merges fresh API data with the cached
+// copy, deduplicating on pair+closeTime. The union is written back to
+// localStorage on every successful fetch — the device becomes the
+// long-term record, the Railway server is just the live window.
+const LS_KEY = "fxangel_trade_history_v1";
+
+function loadCachedHistory() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function mergeAndCacheHistory(fresh, cached) {
+  const freshTrades  = fresh?.trades  || [];
+  const cachedTrades = cached?.trades || [];
+
+  // Dedup by pair + closeTime
+  const seen = new Set();
+  const merged = [];
+  for (const t of [...freshTrades, ...cachedTrades]) {
+    const key = `${t.pair}|${t.closeTime}`;
+    if (!seen.has(key)) { seen.add(key); merged.push(t); }
+  }
+
+  // Newest-first, cap at 2000 rows
+  merged.sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
+  const capped = merged.slice(0, 2000);
+
+  // Recompute stats
+  const totalPnl = capped.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
+  const wins   = capped.filter(t => parseFloat(t.pnl) > 0).length;
+  const losses = capped.filter(t => parseFloat(t.pnl) < 0).length;
+
+  const result = {
+    trades: capped,
+    count:  capped.length,
+    stats: {
+      totalPnl: parseFloat(totalPnl.toFixed(2)),
+      wins, losses,
+      winRate: capped.length > 0
+        ? parseFloat((wins / capped.length * 100).toFixed(1))
+        : 0,
+    },
+  };
+
+  try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch { /* quota */ }
+  return result;
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function FXAngel() {
   const [activeTab, setActiveTab] = useState("signals");
@@ -454,7 +506,7 @@ export default function FXAngel() {
   const [signals, setSignals] = useState([]);
   const [news, setNews] = useState([]);
   const [serverStatus, setServerStatus] = useState(null);
-  const [tradeHistory, setTradeHistory] = useState(null);
+  const [tradeHistory, setTradeHistory] = useState(() => loadCachedHistory());
   const [connected, setConnected] = useState(false);
   const [notification, setNotification] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -492,7 +544,9 @@ export default function FXAngel() {
 
     if (newsData?.news) setNews(newsData.news);
     if (statusData) setServerStatus(statusData);
-    if (historyData) setTradeHistory(historyData);
+    if (historyData) {
+      setTradeHistory(prev => mergeAndCacheHistory(historyData, prev));
+    }
   }, []);
 
   // ── WebSocket for real-time prices and signals ──────────────
@@ -938,6 +992,23 @@ export default function FXAngel() {
                       border: "1px solid #ffffff20", borderRadius: 10, color: "#fff",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
                     }}>📄 All PDF</button>
+                  </div>
+
+                  {/* Cache controls */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace" }}>
+                      💾 {tradeHistory?.count ?? 0} trades cached on this device
+                    </span>
+                    <button onClick={() => {
+                      if (window.confirm("Clear the locally cached trade history? This only removes data from this device — live Railway data is unaffected.")) {
+                        try { localStorage.removeItem(LS_KEY); } catch {}
+                        setTradeHistory(null);
+                      }
+                    }} style={{
+                      background: "transparent", border: "none", color: "#8b949e",
+                      fontFamily: "'Space Mono', monospace", fontSize: 9, cursor: "pointer",
+                      textDecoration: "underline",
+                    }}>🗑 clear device cache</button>
                   </div>
 
                   {/* Trade list */}
