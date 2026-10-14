@@ -1,0 +1,700 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+
+// ─── ARENA ────────────────────────────────────────────────────────────────────
+// Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
+// sub-account. Everything here is read from the backend's /api/arena/* routes.
+
+const MONO = "'Space Mono', monospace";
+const BEBAS = "'Bebas Neue', sans-serif";
+const GREEN = "#00e5a0";
+const RED = "#ff4757";
+const AMBER = "#ffa502";
+
+const COLORS = {
+  claude: "#e8a05a",
+  grok: "#c9d1d9",
+  gemini: "#6ea8ff",
+  openai: "#b583ff",
+  baseline: "#8b949e",
+};
+const colorOf = (k) => COLORS[k] || "#8b949e";
+const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
+const REFRESH_MS = 15000;
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const num = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const money = (n, digits = 2) => {
+  if (n == null || !Number.isFinite(n)) return "–";
+  const f = 10 ** digits;
+  const r = Math.round(n * f) / f;
+  return `${r >= 0 ? "+" : "−"}$${Math.abs(r).toFixed(digits)}`;
+};
+const pnlColor = (n) => (Math.round(n * 100) > 0 ? GREEN : Math.round(n * 100) < 0 ? RED : "#8b949e");
+const price = (n) => {
+  if (n == null || !Number.isFinite(+n)) return "–";
+  const v = +n;
+  if (v >= 1000) return v.toFixed(1);
+  if (v >= 10) return v.toFixed(2);
+  if (v >= 1) return v.toFixed(3);
+  return v.toFixed(5);
+};
+const clock = (iso) =>
+  iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "–";
+const dayTime = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "–";
+const ago = (iso) => {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+};
+const duration = (a, b) => {
+  if (!a || !b) return "";
+  const m = Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} h ${m % 60} min`;
+};
+const nextDecision = () => {
+  const now = Date.now();
+  const slot = 15 * 60 * 1000;
+  return new Date(Math.floor((now - 10000) / slot) * slot + slot + 10000);
+};
+
+async function get(path) {
+  try {
+    const BASE = process.env.REACT_APP_API_BASE || "https://fxangel-backend-production.up.railway.app";
+    const res = await fetch(`${BASE}${path}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// ─── small pieces ─────────────────────────────────────────────────────────────
+function Pill({ children, color, solid }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 7px",
+        borderRadius: 4,
+        fontFamily: MONO,
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: 0.5,
+        color: solid ? "#010409" : color,
+        background: solid ? color : `${color}18`,
+        border: `1px solid ${solid ? color : `${color}40`}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ModelTag({ k, label }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
+      <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{label}</span>
+    </span>
+  );
+}
+
+function SectionTitle({ children, right }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "26px 0 10px" }}>
+      <div style={{ color: "#fff", fontFamily: BEBAS, fontSize: 18, letterSpacing: 2 }}>{children}</div>
+      {right}
+    </div>
+  );
+}
+
+function Card({ children, style, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "#0d1117",
+        border: "1px solid #21262d",
+        borderRadius: 12,
+        padding: 14,
+        cursor: onClick ? "pointer" : "default",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Chips({ options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+      {options.map((o) => {
+        const on = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            style={{
+              flexShrink: 0,
+              background: on ? `${o.color || "#ff4757"}22` : "transparent",
+              border: `1px solid ${on ? o.color || "#ff4757" : "#30363d"}`,
+              color: on ? "#fff" : "#8b949e",
+              borderRadius: 16,
+              padding: "5px 11px",
+              fontFamily: MONO,
+              fontSize: 10,
+              cursor: "pointer",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Empty({ children }) {
+  return (
+    <div
+      style={{
+        border: "1px dashed #30363d",
+        borderRadius: 12,
+        padding: "22px 16px",
+        textAlign: "center",
+        color: "#8b949e",
+        fontSize: 12,
+        lineHeight: 1.6,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── status strip ─────────────────────────────────────────────────────────────
+function StatusStrip({ status }) {
+  const gate = status?.gateNow;
+  const blocked = !!gate?.blocked;
+  const next = nextDecision();
+  return (
+    <Card style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px" }}>
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          background: blocked ? AMBER : GREEN,
+          boxShadow: `0 0 8px ${blocked ? AMBER : GREEN}`,
+          animation: "pulse 2s infinite",
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>
+          {blocked ? `Paused: ${gate.reason}` : "Trading window open"}
+        </div>
+        <div style={{ color: "#8b949e", fontSize: 11, marginTop: 2 }}>
+          {blocked ? "Models are not asked while paused." : `Next decision round about ${clock(next)}`}
+          {status?.arenaStart ? ` · running since ${dayTime(status.arenaStart)}` : ""}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── leaderboard ──────────────────────────────────────────────────────────────
+function modeBadge(mode) {
+  const m = (mode || "").toLowerCase();
+  if (m.startsWith("live")) return <Pill color={GREEN}>LIVE</Pill>;
+  if (m.startsWith("shadow")) return <Pill color={AMBER}>SHADOW</Pill>;
+  return <Pill color="#8b949e">OFF</Pill>;
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ color: "#8b949e", fontFamily: MONO, fontSize: 9, letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ color: color || "#fff", fontFamily: MONO, fontSize: 13, fontWeight: 700, marginTop: 3 }}>{value}</div>
+    </div>
+  );
+}
+
+function Leaderboard({ rows, openCounts }) {
+  const sorted = useMemo(() => {
+    const live = rows.filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
+    const rest = rows.filter((r) => !live.includes(r));
+    live.sort((a, b) => b.netPnl - a.netPnl);
+    rest.sort((a, b) => ORDER.indexOf(a.account) - ORDER.indexOf(b.account));
+    return [...live, ...rest];
+  }, [rows]);
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {sorted.map((r, i) => {
+        const isShadow = !((r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
+        const off = (r.mode || "").toLowerCase().startsWith("off");
+        return (
+          <Card key={r.account} style={{ borderLeft: `3px solid ${colorOf(r.account)}`, opacity: off ? 0.55 : 1 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                {!isShadow && <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 11 }}>#{i + 1}</span>}
+                <ModelTag k={r.account} label={r.label} />
+                {r.model && <span style={{ color: "#484f58", fontFamily: MONO, fontSize: 9 }}>{r.model}</span>}
+              </div>
+              {r.account === "baseline" ? <Pill color="#8b949e">RULES</Pill> : modeBadge(r.mode)}
+            </div>
+
+            {isShadow ? (
+              <div style={{ color: "#8b949e", fontSize: 12, lineHeight: 1.6, marginTop: 10 }}>
+                {off
+                  ? "Switched off (no model key or paused)."
+                  : "Shadow mode: decisions are logged but no orders are placed, so there is no profit or loss yet."}
+                {r.decisions != null && (
+                  <div style={{ fontFamily: MONO, fontSize: 10, marginTop: 6 }}>
+                    asked {r.decisions}× · BUY {r.buys} · SELL {r.sells} · SKIP {r.skips}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "10px 0 12px" }}>
+                  <div style={{ color: pnlColor(r.netPnl), fontFamily: BEBAS, fontSize: 34, letterSpacing: 1, lineHeight: 1 }}>
+                    {money(r.netPnl)}
+                  </div>
+                  <div style={{ color: "#8b949e", fontSize: 11 }}>realised, after fees</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Stat label="TRADES" value={r.trades} />
+                  <Stat label="WIN RATE" value={r.winRate == null ? "–" : `${r.winRate}%`} />
+                  <Stat label="PROFIT FACTOR" value={r.profitFactor == null ? "–" : r.profitFactor} />
+                  <Stat label="OPEN" value={openCounts[r.account] || 0} color={openCounts[r.account] ? AMBER : "#fff"} />
+                </div>
+                {r.decisions != null && (
+                  <div style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10, marginTop: 10 }}>
+                    asked {r.decisions}× · BUY {r.buys} · SELL {r.sells} · SKIP {r.skips}
+                    {r.apiErrors ? ` · ${r.apiErrors} errors` : ""}
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── equity chart ─────────────────────────────────────────────────────────────
+function EquityChart({ series, start }) {
+  const [hidden, setHidden] = useState({});
+  const W = 440, H = 210, PL = 44, PR = 10, PT = 12, PB = 24;
+
+  const visible = series.filter((s) => !hidden[s.account]);
+  const hasTrades = series.some((s) => s.points.length > 1);
+  const t0 = start ? new Date(start).getTime() : Math.min(...series.flatMap((s) => s.points.map((p) => p.t)), Date.now());
+  const t1 = Date.now();
+
+  const values = visible.flatMap((s) => s.points.map((p) => p.v));
+  let lo = Math.min(0, ...values), hi = Math.max(0, ...values);
+  if (hi - lo < 1) { hi += 0.5; lo -= 0.5; }
+  const pad = (hi - lo) * 0.1;
+  lo -= pad; hi += pad;
+
+  const x = (t) => PL + ((t - t0) / Math.max(1, t1 - t0)) * (W - PL - PR);
+  const y = (v) => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
+
+  const ticks = [lo, (lo + hi) / 2, hi].map((v) => +v.toFixed(2));
+  const days = [];
+  for (let d = new Date(t0); d.getTime() <= t1; d = new Date(d.getTime() + 86400000)) {
+    const m = new Date(d); m.setHours(0, 0, 0, 0);
+    if (m.getTime() > t0) days.push(m.getTime());
+    if (days.length > 6) break;
+  }
+
+  return (
+    <Card style={{ padding: "12px 10px 10px" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, padding: "0 4px" }}>
+        {series.map((s) => (
+          <button
+            key={s.account}
+            onClick={() => setHidden((h) => ({ ...h, [s.account]: !h[s.account] }))}
+            style={{
+              background: "transparent",
+              border: `1px solid ${hidden[s.account] ? "#30363d" : colorOf(s.account)}`,
+              color: hidden[s.account] ? "#484f58" : "#fff",
+              borderRadius: 14,
+              padding: "3px 9px",
+              fontFamily: MONO,
+              fontSize: 10,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: hidden[s.account] ? "#30363d" : colorOf(s.account) }} />
+            {s.label}
+            <span style={{ color: hidden[s.account] ? "#484f58" : pnlColor(s.final) }}>{money(s.final, 0)}</span>
+          </button>
+        ))}
+      </div>
+
+      {!hasTrades ? (
+        <div style={{ color: "#8b949e", fontSize: 12, textAlign: "center", padding: "36px 12px", lineHeight: 1.6 }}>
+          No closed trades yet. Each model's line starts as soon as its first trade closes.
+        </div>
+      ) : (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Cumulative profit and loss per model">
+          {ticks.map((v) => (
+            <g key={v}>
+              <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="#21262d" strokeWidth="1" />
+              <text x={PL - 6} y={y(v) + 3} textAnchor="end" fill="#8b949e" fontSize="9" fontFamily="Space Mono, monospace">
+                {v >= 0 ? "" : "−"}${Math.abs(v).toFixed(Math.abs(v) < 10 ? 1 : 0)}
+              </text>
+            </g>
+          ))}
+          <line x1={PL} x2={W - PR} y1={y(0)} y2={y(0)} stroke="#484f58" strokeWidth="1" strokeDasharray="3 3" />
+          {days.map((t) => (
+            <g key={t}>
+              <line x1={x(t)} x2={x(t)} y1={PT} y2={H - PB} stroke="#161b22" strokeWidth="1" />
+              <text x={x(t)} y={H - 8} textAnchor="middle" fill="#8b949e" fontSize="9" fontFamily="Space Mono, monospace">
+                {new Date(t).toLocaleDateString([], { day: "2-digit", month: "short" })}
+              </text>
+            </g>
+          ))}
+          {visible.map((s) => {
+            const pts = [...s.points, { t: t1, v: s.final }];
+            return (
+              <g key={s.account}>
+                <polyline
+                  fill="none"
+                  stroke={colorOf(s.account)}
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeDasharray={s.account === "baseline" ? "5 4" : undefined}
+                  points={pts.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}
+                />
+                <circle cx={x(t1)} cy={y(s.final)} r="3.5" fill={colorOf(s.account)} />
+              </g>
+            );
+          })}
+        </svg>
+      )}
+    </Card>
+  );
+}
+
+// ─── open positions ───────────────────────────────────────────────────────────
+function OpenPositions({ open }) {
+  if (!open.length) return <Empty>No open positions right now.</Empty>;
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {open.map((p) => (
+        <Card key={`${p.account}-${p.pair}`} style={{ borderLeft: `3px solid ${colorOf(p.account)}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ModelTag k={p.account} label={p.label} />
+              <span style={{ color: "#fff", fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{p.pair}</span>
+              <Pill color={p.direction === "BUY" ? GREEN : RED}>{p.direction === "BUY" ? "LONG" : "SHORT"}</Pill>
+            </div>
+            <div style={{ color: pnlColor(p.unrealizedPnl), fontFamily: MONO, fontSize: 15, fontWeight: 700 }}>
+              {money(p.unrealizedPnl)}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <Stat label="ENTRY" value={price(p.entryPrice)} />
+            <Stat label="NOW" value={price(p.price)} />
+            <Stat label="STOP" value={price(p.sl)} color={RED} />
+            <Stat label="TARGET" value={price(p.tp)} color={GREEN} />
+          </div>
+          <div style={{ color: "#8b949e", fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
+            Opened {ago(p.openTime)}
+            {p.confidence != null ? ` · model confidence ${p.confidence}%` : ""}
+            {p.reason ? <div style={{ color: "#cdd9e5", marginTop: 4 }}>“{p.reason}”</div> : null}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── closed trades ────────────────────────────────────────────────────────────
+function Trades({ trades, reasons, filter }) {
+  const [openId, setOpenId] = useState(null);
+  const [limit, setLimit] = useState(25);
+  const rows = trades.filter((t) => filter === "all" || t.account === filter);
+  const total = rows.reduce((s, t) => s + t.pnl, 0);
+  const wins = rows.filter((t) => t.pnl > 0).length;
+
+  if (!rows.length) return <Empty>No closed trades for this selection yet.</Empty>;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, color: "#8b949e", fontFamily: MONO, fontSize: 10, margin: "0 2px 8px" }}>
+        <span>{rows.length} trades</span>
+        <span>{wins} wins</span>
+        <span style={{ color: pnlColor(total) }}>{money(total)} net</span>
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {rows.slice(0, limit).map((t) => {
+          const id = `${t.account}-${t.pair}-${t.closeTime}`;
+          const open = openId === id;
+          const why = t.decisionId ? reasons[t.decisionId] : null;
+          return (
+            <Card key={id} onClick={() => setOpenId(open ? null : id)} style={{ padding: "11px 13px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(t.account), flexShrink: 0 }} />
+                  <span style={{ color: "#fff", fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
+                  <Pill color={t.direction === "BUY" ? GREEN : RED}>{t.direction === "BUY" ? "LONG" : "SHORT"}</Pill>
+                </div>
+                <div style={{ color: pnlColor(t.pnl), fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{money(t.pnl)}</div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#8b949e", fontSize: 11, marginTop: 6 }}>
+                <span>{t.label} · {dayTime(t.closeTime)}</span>
+                <span>{t.reason || ""}</span>
+              </div>
+              {open && (
+                <div style={{ borderTop: "1px solid #21262d", marginTop: 10, paddingTop: 10, fontSize: 11, color: "#8b949e", lineHeight: 1.7 }}>
+                  <div>Entry {price(t.entryPrice)} → exit {price(t.closePrice)}</div>
+                  {t.openTime && <div>Held {duration(t.openTime, t.closeTime)} (opened {dayTime(t.openTime)})</div>}
+                  {t.peakProfit != null && <div>Best unrealised profit during the trade: {money(num(t.peakProfit))}</div>}
+                  {why ? (
+                    <div style={{ color: "#cdd9e5", marginTop: 6 }}>
+                      <span style={{ color: "#8b949e" }}>Why the model took it: </span>“{why.reason}”
+                      {why.confidence ? ` (${why.confidence}% confident)` : ""}
+                    </div>
+                  ) : t.account !== "baseline" ? (
+                    <div style={{ marginTop: 6 }}>The reasoning for this trade is no longer in the recent log.</div>
+                  ) : null}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+      {rows.length > limit && (
+        <button
+          onClick={() => setLimit(limit + 25)}
+          style={{ width: "100%", marginTop: 10, background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 10, padding: 10, fontFamily: MONO, fontSize: 11, cursor: "pointer" }}
+        >
+          Show more
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── decisions feed ───────────────────────────────────────────────────────────
+function Decisions({ decisions, filter, labels }) {
+  const [showSkips, setShowSkips] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [limit, setLimit] = useState(30);
+
+  const rows = decisions.filter((d) => (filter === "all" || d.account === filter) && (showSkips || d.action !== "SKIP"));
+  const skipCount = decisions.filter((d) => (filter === "all" || d.account === filter) && d.action === "SKIP").length;
+
+  return (
+    <div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#8b949e", fontSize: 11, margin: "0 2px 10px", cursor: "pointer" }}>
+        <input type="checkbox" checked={showSkips} onChange={(e) => setShowSkips(e.target.checked)} />
+        Also show SKIP answers ({skipCount} recent)
+      </label>
+      {!rows.length ? (
+        <Empty>
+          {showSkips
+            ? "No decisions logged yet."
+            : "No BUY or SELL decisions yet. The models are asked every 15 minutes inside the trading window, and most answers are SKIP."}
+        </Empty>
+      ) : (
+        <div style={{ display: "grid", gap: 6 }}>
+          {rows.slice(0, limit).map((d) => {
+            const open = openId === d.id;
+            const col = d.action === "BUY" ? GREEN : d.action === "SELL" ? RED : "#8b949e";
+            return (
+              <Card key={d.id} onClick={() => setOpenId(open ? null : d.id)} style={{ padding: "10px 13px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(d.account), flexShrink: 0 }} />
+                    <span style={{ color: "#fff", fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{d.pair}</span>
+                    <Pill color={col} solid={d.action !== "SKIP"}>{d.action}</Pill>
+                    {d.action !== "SKIP" && <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{d.confidence}%</span>}
+                  </div>
+                  <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10, flexShrink: 0 }}>{clock(d.ts)}</span>
+                </div>
+                <div style={{ color: "#8b949e", fontSize: 11, marginTop: 5, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>{labels[d.account] || d.account}</span>
+                  <span style={{ color: d.executed ? GREEN : AMBER }}>
+                    {d.executed
+                      ? "order placed"
+                      : d.action === "SKIP"
+                      ? ""
+                      : d.mode && d.mode.startsWith("shadow")
+                      ? "shadow (no order)"
+                      : "not opened"}
+                  </span>
+                </div>
+                {open && (
+                  <div style={{ borderTop: "1px solid #21262d", marginTop: 8, paddingTop: 8, fontSize: 11, lineHeight: 1.7, color: "#cdd9e5" }}>
+                    <div>“{d.reason || "no reason given"}”</div>
+                    {d.note && <div style={{ color: "#8b949e", marginTop: 4 }}>{d.note}</div>}
+                    <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 6 }}>
+                      {dayTime(d.ts)} · {d.latencyMs} ms · {d.tokensIn || 0} in / {d.tokensOut || 0} out tokens
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+      {rows.length > limit && (
+        <button
+          onClick={() => setLimit(limit + 30)}
+          style={{ width: "100%", marginTop: 10, background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 10, padding: 10, fontFamily: MONO, fontSize: 11, cursor: "pointer" }}
+        >
+          Show more
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── screen ───────────────────────────────────────────────────────────────────
+export default function Arena({ baselineTrades }) {
+  const [data, setData] = useState({ loaded: false });
+  const [filter, setFilter] = useState("all");
+  const [updated, setUpdated] = useState(null);
+
+  const load = useCallback(async () => {
+    const [status, lb, open, trades, decisions] = await Promise.all([
+      get("/api/arena/status"),
+      get("/api/arena/leaderboard"),
+      get("/api/arena/open"),
+      get("/api/arena/trades?limit=500"),
+      get("/api/arena/decisions?limit=500"),
+    ]);
+    setData({ loaded: true, status, lb, open: open || [], trades: trades || [], decisions: decisions || [] });
+    if (status) setUpdated(new Date());
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const { status, lb } = data;
+  const since = lb?.since || status?.arenaStart || null;
+
+  // closed trades of every account, newest first (models + baseline)
+  const trades = useMemo(() => {
+    const models = (data.trades || []).map((t) => ({ ...t, pnl: num(t.pnl) }));
+    const sinceMs = since ? new Date(since).getTime() : 0;
+    const base = (baselineTrades || [])
+      .filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs)
+      .map((t) => ({
+        account: "baseline",
+        label: "Baseline",
+        pair: t.pair,
+        direction: t.direction || t.side || (t.type === "SELL" ? "SELL" : "BUY"),
+        entryPrice: t.entry ?? t.entryPrice,
+        closePrice: t.exit ?? t.closePrice,
+        pnl: num(t.pnl),
+        reason: t.reason,
+        openTime: t.openTime || null,
+        closeTime: t.closeTime,
+        peakProfit: null,
+        decisionId: null,
+      }));
+    return [...models, ...base].sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
+  }, [data.trades, baselineTrades, since]);
+
+  // one cumulative-PnL line per account
+  const series = useMemo(() => {
+    const t0 = since ? new Date(since).getTime() : Date.now();
+    const keys = (lb?.rows || []).map((r) => r.account);
+    return keys
+      .map((k) => {
+        const row = lb.rows.find((r) => r.account === k);
+        const mine = trades.filter((t) => t.account === k).sort((a, b) => new Date(a.closeTime) - new Date(b.closeTime));
+        let run = 0;
+        const points = [{ t: t0, v: 0 }];
+        for (const t of mine) { run += t.pnl; points.push({ t: new Date(t.closeTime).getTime(), v: +run.toFixed(2) }); }
+        return { account: k, label: k === "baseline" ? "Baseline" : row.label, points, final: +run.toFixed(2), live: (row.mode || "").toLowerCase().startsWith("live") || k === "baseline" };
+      })
+      .filter((s) => s.live)
+      .sort((a, b) => ORDER.indexOf(a.account) - ORDER.indexOf(b.account));
+  }, [trades, lb, since]);
+
+  const reasons = useMemo(() => Object.fromEntries((data.decisions || []).map((d) => [d.id, d])), [data.decisions]);
+  const labels = useMemo(() => {
+    const m = {};
+    (lb?.rows || []).forEach((r) => { m[r.account] = r.label; });
+    return m;
+  }, [lb]);
+  const openCounts = useMemo(() => {
+    const c = {};
+    (data.open || []).forEach((p) => { c[p.account] = (c[p.account] || 0) + 1; });
+    return c;
+  }, [data.open]);
+
+  const filterOptions = [
+    { id: "all", label: "All", color: "#ff4757" },
+    ...ORDER.filter((k) => labels[k]).map((k) => ({ id: k, label: labels[k].replace(" (rules engine)", ""), color: colorOf(k) })),
+  ];
+
+  if (!data.loaded) {
+    return <div style={{ color: "#8b949e", fontFamily: MONO, fontSize: 12, padding: "40px 0", textAlign: "center" }}>Loading arena…</div>;
+  }
+  if (!status) {
+    return <Empty>Can't reach the server right now. It retries automatically every few seconds.</Empty>;
+  }
+  if (!status.enabled) {
+    return <Empty>The arena is switched off on the server (ARENA_ENABLED is not true).</Empty>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div style={{ color: "#fff", fontFamily: BEBAS, fontSize: 26, letterSpacing: 3 }}>THE ARENA</div>
+        <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9 }}>{updated ? `updated ${clock(updated.toISOString())}` : ""}</div>
+      </div>
+      <div style={{ color: "#8b949e", fontSize: 12, margin: "2px 0 12px", lineHeight: 1.5 }}>
+        Same market data, same stop and target, one Binance account per model. Profit is realised and after fees.
+      </div>
+
+      <StatusStrip status={status} />
+
+      <SectionTitle>STANDINGS</SectionTitle>
+      <Leaderboard rows={lb?.rows || []} openCounts={openCounts} />
+
+      <SectionTitle>PROFIT OVER TIME</SectionTitle>
+      <EquityChart series={series} start={since} />
+
+      <SectionTitle right={<span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span>}>OPEN NOW</SectionTitle>
+      <OpenPositions open={data.open} />
+
+      <SectionTitle>TRADES</SectionTitle>
+      <Chips options={filterOptions} value={filter} onChange={setFilter} />
+      <div style={{ height: 10 }} />
+      <Trades trades={trades} reasons={reasons} filter={filter} />
+
+      <SectionTitle>MODEL DECISIONS</SectionTitle>
+      <Decisions decisions={data.decisions || []} filter={filter} labels={labels} />
+    </div>
+  );
+}

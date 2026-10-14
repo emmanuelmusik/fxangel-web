@@ -1,5 +1,6 @@
 import React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
+import Arena from "./Arena";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // Backend URL — deployed on Railway
@@ -494,7 +495,7 @@ function mergeAndCacheHistory(fresh, cached) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function FXAngel() {
-  const [activeTab, setActiveTab] = useState("signals");
+  const [activeTab, setActiveTab] = useState("arena");
   const [historyFilter, setHistoryFilter] = useState("ALL");
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
@@ -659,6 +660,7 @@ export default function FXAngel() {
   })();
 
   const tabs = [
+    { id: "arena", label: "Arena", icon: "🏟️" },
     { id: "signals", label: "Signals", icon: "⚡" },
     { id: "history", label: "History", icon: "📋" },
     { id: "peaks", label: "Peaks", icon: "📈" },
@@ -713,7 +715,7 @@ export default function FXAngel() {
               }}>FXANGEL</span>
             </div>
             <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", letterSpacing: 1 }}>
-              AI-POWERED FX SIGNAL ENGINE
+              {activeTab === "arena" ? "AI TRADING ARENA · BINANCE FUTURES" : "AI-POWERED FX SIGNAL ENGINE"}
             </div>
           </div>
           <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
@@ -745,7 +747,7 @@ export default function FXAngel() {
 
         {/* Price ticker */}
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-          {PAIRS.map(pair => (
+          {(activeTab === "arena" ? CRYPTO_PAIRS : PAIRS).map(pair => (
             <div key={pair} style={{
               flexShrink: 0, background: "#21262d", borderRadius: 6, padding: "4px 8px",
               display: "flex", gap: 6, alignItems: "center",
@@ -761,6 +763,9 @@ export default function FXAngel() {
 
       {/* Content */}
       <div style={{ padding: "14px 14px 100px", position: "relative", zIndex: 1 }}>
+
+        {/* ── ARENA TAB ── */}
+        {activeTab === "arena" && <Arena baselineTrades={tradeHistory?.trades} />}
 
         {/* ── SIGNALS TAB ── */}
         {activeTab === "signals" && (
