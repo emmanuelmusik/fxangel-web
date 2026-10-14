@@ -232,7 +232,33 @@ function Stat({ label, value, color }) {
   );
 }
 
-function Leaderboard({ rows, openCounts }) {
+function Wallet({ w }) {
+  if (!w) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        borderTop: "1px solid #21262d",
+        marginTop: 12,
+        paddingTop: 10,
+      }}
+    >
+      <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 9, letterSpacing: 0.5 }}>WALLET</span>
+      {w.error || w.equity == null ? (
+        <span style={{ color: AMBER, fontFamily: MONO, fontSize: 10 }}>unavailable</span>
+      ) : (
+        <span style={{ fontFamily: MONO, fontSize: 12 }}>
+          <span style={{ color: "#fff", fontWeight: 700 }}>${w.equity.toFixed(2)}</span>
+          <span style={{ color: "#8b949e" }}> · free ${w.available.toFixed(2)}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Leaderboard({ rows, openCounts, wallets }) {
   const sorted = useMemo(() => {
     const live = rows.filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
     const rest = rows.filter((r) => !live.includes(r));
@@ -288,6 +314,7 @@ function Leaderboard({ rows, openCounts }) {
                     {r.apiErrors ? ` · ${r.apiErrors} errors` : ""}
                   </div>
                 )}
+                <Wallet w={wallets[r.account]} />
               </>
             )}
           </Card>
@@ -580,14 +607,15 @@ export default function Arena({ baselineTrades }) {
   const [updated, setUpdated] = useState(null);
 
   const load = useCallback(async () => {
-    const [status, lb, open, trades, decisions] = await Promise.all([
+    const [status, lb, open, trades, decisions, balances] = await Promise.all([
       get("/api/arena/status"),
       get("/api/arena/leaderboard"),
       get("/api/arena/open"),
       get("/api/arena/trades?limit=500"),
       get("/api/arena/decisions?limit=500"),
+      get("/api/arena/balances"),
     ]);
-    setData({ loaded: true, status, lb, open: open || [], trades: trades || [], decisions: decisions || [] });
+    setData({ loaded: true, status, lb, open: open || [], trades: trades || [], decisions: decisions || [], balances: Array.isArray(balances) ? balances : [] });
     if (status) setUpdated(new Date());
   }, []);
 
@@ -646,6 +674,7 @@ export default function Arena({ baselineTrades }) {
     (lb?.rows || []).forEach((r) => { m[r.account] = r.label; });
     return m;
   }, [lb]);
+  const wallets = useMemo(() => Object.fromEntries((data.balances || []).map((b) => [b.account, b])), [data.balances]);
   const openCounts = useMemo(() => {
     const c = {};
     (data.open || []).forEach((p) => { c[p.account] = (c[p.account] || 0) + 1; });
@@ -680,7 +709,7 @@ export default function Arena({ baselineTrades }) {
       <StatusStrip status={status} />
 
       <SectionTitle>STANDINGS</SectionTitle>
-      <Leaderboard rows={lb?.rows || []} openCounts={openCounts} />
+      <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
 
       <SectionTitle>PROFIT OVER TIME</SectionTitle>
       <EquityChart series={series} start={since} />
