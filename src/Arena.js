@@ -576,7 +576,7 @@ function Decisions({ decisions, filter, labels }) {
                 </div>
                 {open && (
                   <div style={{ borderTop: "1px solid #21262d", marginTop: 8, paddingTop: 8, fontSize: 11, lineHeight: 1.7, color: "#cdd9e5" }}>
-                    <div>“{d.reason || "no reason given"}”</div>
+                    <div>{d.reason ? `“${d.reason}”` : d.action === "SKIP" ? "Skipped (no explanation requested)" : "no reason given"}</div>
                     {d.note && <div style={{ color: "#8b949e", marginTop: 4 }}>{d.note}</div>}
                     <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 6 }}>
                       {dayTime(d.ts)} · {d.latencyMs} ms · {d.tokensIn || 0} in / {d.tokensOut || 0} out tokens
