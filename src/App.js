@@ -556,46 +556,24 @@ export default function FXAngel() {
   const wsRef = useRef(null);
 
   // History tab: accurate crypto figures (Binance fills, fees included) + every AI model's trades
-  // History tab: accurate crypto figures (Binance fills, fees included) + every AI model's trades
   useEffect(() => {
     if (activeTab !== "history") return;
     let dead = false;
     const pull = async () => {
       const [b, m] = await Promise.all([
-        fetch(`${API_BASE}/api/arena/baseline?days=180`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/api/arena/baseline?days=90`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/api/arena/trades?limit=1000`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       if (dead) return;
       setAccurate({
         baseline: b && b.source === "binance" ? b.trades : null,
+        loading: !!(b && b.source === "loading"),
         partial: !!(b && b.partial),
         models: Array.isArray(m) ? m : [],
       });
     };
     pull();
-    const id = setInterval(pull, 60000);
-    return () => { dead = true; clearInterval(id); };
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== "history") return;
-    let dead = false;
-    const pull = async () => {
-      try {
-        const [b, m] = await Promise.all([
-          fetch(`${API_BASE}/api/arena/baseline?days=180`).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch(`${API_BASE}/api/arena/trades?limit=1000`).then(r => r.ok ? r.json() : null).catch(() => null),
-        ]);
-        if (dead) return;
-        setAccurate({
-          baseline: b && b.source === "binance" ? b.trades : null,
-          partial: !!(b && b.partial),
-          models: Array.isArray(m) ? m : [],
-        });
-      } catch { /* keep what we have */ }
-    };
-    pull();
-    const id = setInterval(pull, 60000);
+    const id = setInterval(pull, 20000);
     return () => { dead = true; clearInterval(id); };
   }, [activeTab]);
 
@@ -900,9 +878,10 @@ export default function FXAngel() {
               // for the last 180 days; AI model trades come from the arena. FX stays as logged.
               const MODEL_NAMES = { baseline: "Baseline", claude: "Claude", grok: "Grok", gemini: "Gemini", openai: "OpenAI" };
               const logged = (tradeHistory?.trades || []).map(t => ({ ...t, model: "baseline" }));
-              let allTrades = logged;
+              // while Binance figures are still loading, hide the app's inaccurate crypto log
+              let allTrades = accurate && !accurate.baseline && accurate.loading ? logged.filter(t => t.assetClass !== "CRYPTO") : logged;
               if (accurate?.baseline) {
-                const cover = Date.now() - 180 * 86400000;
+                const cover = Date.now() - 90 * 86400000;
                 const keep = logged.filter(t => t.assetClass !== "CRYPTO" || new Date(t.closeTime || 0).getTime() < cover);
                 const base = accurate.baseline.map(t => ({
                   pair: t.pair, direction: t.direction, entry: "—", closePrice: t.closePrice,
@@ -960,7 +939,7 @@ export default function FXAngel() {
                     ))}
                   </div>
                   <div style={{ color: "#5a6573", fontSize: 8, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
-                    {accurate?.baseline ? "Crypto figures come from Binance, fees included (BNFCR counted as $1)." : "Loading Binance figures… showing the app's own log meanwhile."}
+                    {accurate?.baseline ? "Crypto figures come from Binance (last 90 days), fees included (BNFCR counted as $1)." : (accurate?.loading ? "Loading Binance figures… (first load can take a minute; it updates by itself)" : "Binance figures unavailable — showing the app's own log (may be inaccurate).")}
                     {accurate?.partial ? " Some older fills could not be loaded." : ""}
                   </div>
 
