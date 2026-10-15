@@ -732,7 +732,7 @@ export default function FXAngel() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <img src="/logo-96.png" alt="FXAngel" width={30} height={30} style={{ borderRadius: 7, display: "block" }} />
+              <img src="/logo-96.png" alt="FXAngel" width={42} height={42} style={{ borderRadius: 9, display: "block" }} />
               <span style={{
                 fontFamily: "'Bebas Neue', sans-serif", fontSize: 26,
                 letterSpacing: 4, color: "#fff", textShadow: "0 0 20px #00e5a030",
