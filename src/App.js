@@ -500,6 +500,8 @@ export default function FXAngel() {
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [historyModel, setHistoryModel] = useState("ALL"); // ALL | baseline | claude | grok | gemini | openai
+  const [accurate, setAccurate] = useState(null); // { baseline: [...], models: [...] } straight from Binance / the arena
   const [peaksSlOnly, setPeaksSlOnly] = useState(false);
   const [peaksSort, setPeaksSort] = useState("newest"); // newest | giveback | peak
   const [expandedSignal, setExpandedSignal] = useState(null);
@@ -552,6 +554,50 @@ export default function FXAngel() {
 
   // ── WebSocket for real-time prices and signals ──────────────
   const wsRef = useRef(null);
+
+  // History tab: accurate crypto figures (Binance fills, fees included) + every AI model's trades
+  // History tab: accurate crypto figures (Binance fills, fees included) + every AI model's trades
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    let dead = false;
+    const pull = async () => {
+      const [b, m] = await Promise.all([
+        fetch(`${API_BASE}/api/arena/baseline?days=180`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/api/arena/trades?limit=1000`).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]);
+      if (dead) return;
+      setAccurate({
+        baseline: b && b.source === "binance" ? b.trades : null,
+        partial: !!(b && b.partial),
+        models: Array.isArray(m) ? m : [],
+      });
+    };
+    pull();
+    const id = setInterval(pull, 60000);
+    return () => { dead = true; clearInterval(id); };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "history") return;
+    let dead = false;
+    const pull = async () => {
+      try {
+        const [b, m] = await Promise.all([
+          fetch(`${API_BASE}/api/arena/baseline?days=180`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`${API_BASE}/api/arena/trades?limit=1000`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+        if (dead) return;
+        setAccurate({
+          baseline: b && b.source === "binance" ? b.trades : null,
+          partial: !!(b && b.partial),
+          models: Array.isArray(m) ? m : [],
+        });
+      } catch { /* keep what we have */ }
+    };
+    pull();
+    const id = setInterval(pull, 60000);
+    return () => { dead = true; clearInterval(id); };
+  }, [activeTab]);
 
   useEffect(() => {
     fetchAll();
@@ -850,7 +896,28 @@ export default function FXAngel() {
 
             {/* FX / Crypto / All sub-tabs */}
             {(() => {
-              const allTrades = tradeHistory?.trades || [];
+              // Accurate sources: baseline from Binance (fees included) replaces the bot's own crypto log
+              // for the last 180 days; AI model trades come from the arena. FX stays as logged.
+              const MODEL_NAMES = { baseline: "Baseline", claude: "Claude", grok: "Grok", gemini: "Gemini", openai: "OpenAI" };
+              const logged = (tradeHistory?.trades || []).map(t => ({ ...t, model: "baseline" }));
+              let allTrades = logged;
+              if (accurate?.baseline) {
+                const cover = Date.now() - 180 * 86400000;
+                const keep = logged.filter(t => t.assetClass !== "CRYPTO" || new Date(t.closeTime || 0).getTime() < cover);
+                const base = accurate.baseline.map(t => ({
+                  pair: t.pair, direction: t.direction, entry: "—", closePrice: t.closePrice,
+                  pnl: (parseFloat(t.pnl) || 0).toFixed(2), reason: t.reason, closeTime: t.closeTime,
+                  assetClass: "CRYPTO", model: "baseline",
+                }));
+                allTrades = [...keep, ...base];
+              }
+              const modelTrades = (accurate?.models || []).map(t => ({
+                pair: t.pair, direction: t.direction, entry: t.entryPrice, closePrice: t.closePrice,
+                pnl: (parseFloat(t.pnl) || 0).toFixed(2), reason: t.reason, closeTime: t.closeTime,
+                assetClass: "CRYPTO", model: String(t.account || "").toLowerCase(),
+              }));
+              allTrades = [...allTrades, ...modelTrades].sort((a, b) => new Date(b.closeTime || 0) - new Date(a.closeTime || 0));
+              if (historyModel !== "ALL") allTrades = allTrades.filter(t => t.model === historyModel);
 
               // Period filter
               const now = new Date();
@@ -876,9 +943,27 @@ export default function FXAngel() {
               const wins = filtered.filter(t => parseFloat(t.pnl) > 0).length;
               const losses = filtered.filter(t => parseFloat(t.pnl) < 0).length;
               const winRate = filtered.length > 0 ? ((wins / filtered.length) * 100).toFixed(0) : 0;
+              const scoped = { trades: periodFiltered };
 
               return (
                 <>
+                  {/* AI model selector */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    {[["ALL", "All models"], ...Object.entries(MODEL_NAMES)].map(([id, label]) => (
+                      <button key={id} onClick={() => setHistoryModel(id)} style={{
+                        flex: "1 1 30%", padding: "7px 4px",
+                        background: historyModel === id ? "#a371f720" : "#0d1117",
+                        border: `1px solid ${historyModel === id ? "#a371f7" : "#21262d"}`,
+                        borderRadius: 10, color: historyModel === id ? "#a371f7" : "#8b949e",
+                        fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, cursor: "pointer",
+                      }}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{ color: "#5a6573", fontSize: 8, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
+                    {accurate?.baseline ? "Crypto figures come from Binance, fees included (BNFCR counted as $1)." : "Loading Binance figures… showing the app's own log meanwhile."}
+                    {accurate?.partial ? " Some older fills could not be loaded." : ""}
+                  </div>
+
                   {/* Sub-tab selector */}
                   <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
                     {[
@@ -982,17 +1067,17 @@ export default function FXAngel() {
 
                   {/* Download buttons */}
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "FX")} style={{
+                    <button onClick={() => downloadHistoryPDF(scoped, "FX")} style={{
                       flex: 1, padding: "8px 6px", background: "#00e5a015",
                       border: "1px solid #00e5a040", borderRadius: 10, color: "#00e5a0",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
                     }}>📄 FX PDF</button>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "CRYPTO")} style={{
+                    <button onClick={() => downloadHistoryPDF(scoped, "CRYPTO")} style={{
                       flex: 1, padding: "8px 6px", background: "#ffa50215",
                       border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
                     }}>📄 Crypto PDF</button>
-                    <button onClick={() => downloadHistoryPDF(tradeHistory, "ALL")} style={{
+                    <button onClick={() => downloadHistoryPDF(scoped, "ALL")} style={{
                       flex: 1, padding: "8px 6px", background: "#ffffff10",
                       border: "1px solid #ffffff20", borderRadius: 10, color: "#fff",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
@@ -1019,7 +1104,7 @@ export default function FXAngel() {
                   {/* Trade list */}
                   {filtered.length === 0 ? (
                     <div style={{ textAlign: "center", padding: 32, color: "#8b949e", fontSize: 11 }}>
-                      {connected ? `No ${historyFilter === "ALL" ? "" : historyFilter + " "}trades recorded yet` : "Backend offline"}
+                      {connected || accurate ? `No ${historyFilter === "ALL" ? "" : historyFilter + " "}trades recorded yet` : "Backend offline"}
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1041,6 +1126,9 @@ export default function FXAngel() {
                                 <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
                                 <span style={{ color: accentColor, fontSize: 8, fontFamily: "'Space Mono', monospace", background: `${accentColor}15`, padding: "2px 5px", borderRadius: 4 }}>
                                   {isFX ? "💱 FX" : "🪙 CRYPTO"}
+                                </span>
+                                <span style={{ color: "#a371f7", fontSize: 8, fontFamily: "'Space Mono', monospace", background: "#a371f715", padding: "2px 5px", borderRadius: 4 }}>
+                                  {MODEL_NAMES[t.model] || t.model}
                                 </span>
                               </div>
                               <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
