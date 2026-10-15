@@ -732,11 +732,11 @@ export default function FXAngel() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20 }}>👼</span>
+              <img src="/logo-96.png" alt="FXAngel" width={30} height={30} style={{ borderRadius: 7, display: "block" }} />
               <span style={{
                 fontFamily: "'Bebas Neue', sans-serif", fontSize: 26,
-                letterSpacing: 4, color: "#fff", textShadow: "0 0 20px #ff475730",
-              }}>FXANGEL</span>
+                letterSpacing: 4, color: "#fff", textShadow: "0 0 20px #00e5a030",
+              }}><span style={{ color: "#00e5a0" }}>FX</span>ANGEL</span>
             </div>
             <div style={{ color: "#8b949e", fontSize: 9, fontFamily: "'Space Mono', monospace", letterSpacing: 1 }}>
               {activeTab === "arena" ? "AI TRADING ARENA · BINANCE FUTURES" : "AI-POWERED FX SIGNAL ENGINE"}
