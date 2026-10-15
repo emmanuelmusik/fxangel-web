@@ -561,7 +561,7 @@ export default function FXAngel() {
     let dead = false;
     const pull = async () => {
       const [b, m] = await Promise.all([
-        fetch(`${API_BASE}/api/arena/baseline?days=90`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/api/arena/baseline`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/api/arena/trades?limit=1000`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       if (dead) return;
@@ -881,7 +881,7 @@ export default function FXAngel() {
               // while Binance figures are still loading, hide the app's inaccurate crypto log
               let allTrades = accurate && !accurate.baseline && accurate.loading ? logged.filter(t => t.assetClass !== "CRYPTO") : logged;
               if (accurate?.baseline) {
-                const cover = Date.now() - 90 * 86400000;
+                const cover = accurate.baseline.length ? Math.min(...accurate.baseline.map(t => new Date(t.closeTime).getTime())) : Date.now() - 7 * 86400000;
                 const keep = logged.filter(t => t.assetClass !== "CRYPTO" || new Date(t.closeTime || 0).getTime() < cover);
                 const base = accurate.baseline.map(t => ({
                   pair: t.pair, direction: t.direction, entry: "—", closePrice: t.closePrice,
@@ -939,7 +939,7 @@ export default function FXAngel() {
                     ))}
                   </div>
                   <div style={{ color: "#5a6573", fontSize: 8, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
-                    {accurate?.baseline ? "Crypto figures come from Binance (last 90 days), fees included (BNFCR counted as $1)." : (accurate?.loading ? "Loading Binance figures… (first load can take a minute; it updates by itself)" : "Binance figures unavailable — showing the app's own log (may be inaccurate).")}
+                    {accurate?.baseline ? "Crypto figures since the arena started come from Binance, fees included (BNFCR counted as $1)." : (accurate?.loading ? "Loading Binance figures… (first load can take a minute; it updates by itself)" : "Binance figures unavailable — showing the app's own log (may be inaccurate).")}
                     {accurate?.partial ? " Some older fills could not be loaded." : ""}
                   </div>
 
