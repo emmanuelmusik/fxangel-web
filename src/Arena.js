@@ -496,7 +496,7 @@ function Trades({ trades, reasons, filter }) {
               </div>
               {open && (
                 <div style={{ borderTop: "1px solid #21262d", marginTop: 10, paddingTop: 10, fontSize: 11, color: "#8b949e", lineHeight: 1.7 }}>
-                  <div>Entry {price(t.entryPrice)} → exit {price(t.closePrice)}</div>
+                  <div>{t.entryPrice != null ? `Entry ${price(t.entryPrice)} → exit ${price(t.closePrice)}` : `Exit ${price(t.closePrice)}`}</div>
                   {t.openTime && <div>Held {duration(t.openTime, t.closeTime)} (opened {dayTime(t.openTime)})</div>}
                   {t.peakProfit != null && <div>Best unrealised profit during the trade: {money(num(t.peakProfit))}</div>}
                   {why ? (
@@ -607,15 +607,16 @@ export default function Arena({ baselineTrades }) {
   const [updated, setUpdated] = useState(null);
 
   const load = useCallback(async () => {
-    const [status, lb, open, trades, decisions, balances] = await Promise.all([
+    const [status, lb, open, trades, decisions, balances, baseline] = await Promise.all([
       get("/api/arena/status"),
       get("/api/arena/leaderboard"),
       get("/api/arena/open"),
       get("/api/arena/trades?limit=500"),
       get("/api/arena/decisions?limit=500"),
       get("/api/arena/balances"),
+      get("/api/arena/baseline"),
     ]);
-    setData({ loaded: true, status, lb, open: open || [], trades: trades || [], decisions: decisions || [], balances: Array.isArray(balances) ? balances : [] });
+    setData({ loaded: true, status, lb, open: open || [], trades: trades || [], decisions: decisions || [], balances: Array.isArray(balances) ? balances : [], baseline: baseline && baseline.source === "binance" ? baseline.trades : null });
     if (status) setUpdated(new Date());
   }, []);
 
@@ -632,7 +633,15 @@ export default function Arena({ baselineTrades }) {
   const trades = useMemo(() => {
     const models = (data.trades || []).map((t) => ({ ...t, pnl: num(t.pnl) }));
     const sinceMs = since ? new Date(since).getTime() : 0;
-    const base = (baselineTrades || [])
+    // preferred: the baseline's trades as Binance reports them (fees included); fallback: the app's own log
+    const fromBinance = data.baseline
+      ? data.baseline.map((t) => ({
+          account: "baseline", label: "Baseline", pair: t.pair, direction: t.direction,
+          entryPrice: null, closePrice: t.closePrice, pnl: num(t.pnl), reason: t.reason,
+          openTime: null, closeTime: t.closeTime, peakProfit: null, decisionId: null,
+        }))
+      : null;
+    const base = fromBinance || (baselineTrades || [])
       .filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs)
       .map((t) => ({
         account: "baseline",
@@ -649,7 +658,7 @@ export default function Arena({ baselineTrades }) {
         decisionId: null,
       }));
     return [...models, ...base].sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
-  }, [data.trades, baselineTrades, since]);
+  }, [data.trades, data.baseline, baselineTrades, since]);
 
   // one cumulative-PnL line per account
   const series = useMemo(() => {
