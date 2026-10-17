@@ -101,7 +101,6 @@ export default function ArenaSettings({ apiBase }) {
       if (r.status === 200) { setUnlocked(true); load(); }
       else { try { sessionStorage.removeItem(PW_KEY); } catch { /* ignore */ } setPw(""); }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const unlock = async () => {
