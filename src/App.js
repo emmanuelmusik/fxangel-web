@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Arena from "./Arena";
+import ArenaSettings from "./ArenaSettings";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // Backend URL — deployed on Railway
@@ -1540,6 +1541,9 @@ export default function FXAngel() {
         {activeTab === "settings" && (
           <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 14 }}>SETTINGS</div>
+
+            {/* Trading settings: margin, leverage, SL/TP limits, models, hours (password protected) */}
+            <ArenaSettings apiBase={API_BASE} />
 
             {/* Backend status */}
             <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 }}>
