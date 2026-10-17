@@ -253,19 +253,30 @@ export default function ArenaSettings({ apiBase }) {
             <datalist id={listId}>{(MODEL_SUGGESTIONS[m.provider] || []).map((s) => <option key={s} value={s} />)}</datalist>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {NUM_FIELDS.map(([name, text]) => (
-                <div key={name}>
-                  <div style={label}>{text.toUpperCase()}{name === "leverage" ? ` · MAX ${levMax}` : ""}</div>
-                  <input
-                    style={input} inputMode="decimal" value={f[name]}
-                    onChange={(e) => setModel(k, name, e.target.value)}
-                  />
-                </div>
-              ))}
+              {NUM_FIELDS.map(([name, text]) => {
+                const isSl = name.startsWith("sl"), isTp = name.startsWith("tp");
+                const pct = parseFloat(f[name]);
+                const usd = (isSl || isTp) && notional != null && Number.isFinite(pct) ? notional * pct / 100 : null;
+                return (
+                  <div key={name}>
+                    <div style={label}>{text.toUpperCase()}{name === "leverage" ? ` · MAX ${levMax}` : ""}</div>
+                    <input
+                      style={input} inputMode="decimal" value={f[name]}
+                      onChange={(e) => setModel(k, name, e.target.value)}
+                    />
+                    {usd != null && (
+                      <div style={{ color: isSl ? "#f85149" : GREEN, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>
+                        {isSl ? "≈ -" : "≈ +"}${usd.toFixed(usd < 0.1 ? 3 : 2)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginTop: 10, lineHeight: 1.6 }}>
               {notional != null && <>Position ≈ ${notional.toFixed(0)} · fees ≈ ${(notional * 0.001).toFixed(2)} per round trip<br /></>}
+              {notional != null && <>SL/TP dollar amounts are before fees (a win nets TP minus fees, a loss is SL plus fees)<br /></>}
               {btcMargin != null && <>BTC has a ~$100 minimum order, so it uses about ${btcMargin.toFixed(2)} margin<br /></>}
               Default: ${m.defaults.marginUsd} at {m.defaults.leverage}x
             </div>
