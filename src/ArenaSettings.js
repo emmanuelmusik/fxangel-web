@@ -90,6 +90,7 @@ export default function ArenaSettings({ apiBase }) {
   const [form, setForm] = useState(null);
   const [msg, setMsg] = useState(null);       // { ok, text }
   const [busy, setBusy] = useState(false);
+  const [baseOpen, setBaseOpen] = useState(false);   // Baseline card folded by default
 
   const post = useCallback(async (path, body) => {
     const r = await fetch(`${apiBase}/api/arena${path}`, {
@@ -324,11 +325,26 @@ export default function ArenaSettings({ apiBase }) {
 
       {/* baseline */}
       <div style={card}>
-        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>📊 Baseline (main account)</div>
-        <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginBottom: 12, lineHeight: 1.6 }}>
-          Rules for the main-account bot, per coin. SL and TP are fixed dollar amounts on the position. New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
+        <div
+          onClick={() => setBaseOpen((o) => !o)} role="button" aria-expanded={baseOpen}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+        >
+          <div>
+            <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>📊 Baseline (main account)</div>
+            {!baseOpen && (
+              <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginTop: 4 }}>
+                {BASE_ORDER.filter((sym) => form.baseline[sym]?.trading).length} of {Object.keys(form.baseline).length} coins trading · tap to open
+              </div>
+            )}
+          </div>
+          <span style={{ color: "#8b949e", fontSize: 14, fontFamily: MONO }}>{baseOpen ? "▲" : "▼"}</span>
         </div>
-        {BASE_ORDER.map((sym) => {
+        {baseOpen && (
+          <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, margin: "8px 0 4px", lineHeight: 1.6 }}>
+            Rules for the main-account bot, per coin. SL and TP are fixed dollar amounts on the position. New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
+          </div>
+        )}
+        {baseOpen && BASE_ORDER.map((sym) => {
           const b = (data.baseline || {})[sym], f = form.baseline[sym];
           if (!b || !f) return null;
           const margin = parseFloat(f.tradeUsd), lev = parseFloat(f.leverage), sl = parseFloat(f.slUsd), tp = parseFloat(f.tpUsd);
