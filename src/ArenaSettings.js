@@ -29,6 +29,15 @@ const NUM_FIELDS = [
   ["tpMaxPct", "TP max (%)"],
 ];
 
+const BASE_ORDER = ["BTCUSDT", "ETHUSDT", "DOGEUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "AVAXUSDT"];
+const BASE_FIELDS = [
+  ["tradeUsd", "Margin ($)"],
+  ["leverage", "Leverage (x)"],
+  ["slUsd", "SL ($)"],
+  ["tpUsd", "TP ($)"],
+];
+const FEE_SIDE = 0.0005;   // Binance taker fee per side, same figure the bot uses for break-even
+
 const card = { background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 };
 const label = { color: "#8b949e", fontSize: 9, fontFamily: MONO, marginBottom: 4 };
 const input = {
@@ -54,10 +63,17 @@ function toForm(d) {
       tpMinPct: String(m.tpMinPct), tpMaxPct: String(m.tpMaxPct),
     };
   }
+  const baseline = {};
+  for (const sym of BASE_ORDER) {
+    const b = (d.baseline || {})[sym];
+    if (!b) continue;
+    baseline[sym] = { trading: !b.paused, tradeUsd: String(b.tradeUsd), leverage: String(b.leverage), slUsd: String(b.slUsd), tpUsd: String(b.tpUsd) };
+  }
   const g = d.global;
   const allDay = g.entryFromUtc === 0 && g.entryUntilUtc === 24;
   return {
     models,
+    baseline,
     allDay,
     fromG: (g.entryFromUtc + 1) % 24,                 // GMT+1 hour entries start
     untilG: ((g.entryUntilUtc + 1 - 1) % 24) + 1,     // GMT+1 hour entries stop (1-24)
@@ -122,9 +138,22 @@ export default function ArenaSettings({ apiBase }) {
 
   const setModel = (k, f, v) => setForm((s) => ({ ...s, models: { ...s.models, [k]: { ...s.models[k], [f]: v } } }));
 
+  const setBase = (sym, f, v) => setForm((s) => ({ ...s, baseline: { ...s.baseline, [sym]: { ...s.baseline[sym], [f]: v } } }));
+
   // only what the user actually changed
   const buildPatch = () => {
-    const patch = { models: {}, global: {} };
+    const patch = { models: {}, global: {}, baseline: {} };
+    for (const sym of BASE_ORDER) {
+      const cur = (data.baseline || {})[sym], f = form.baseline[sym];
+      if (!cur || !f) continue;
+      const p = {};
+      if (f.trading !== !cur.paused) p.paused = !f.trading;
+      for (const [name] of BASE_FIELDS) {
+        const n = parseFloat(f[name]);
+        if (n !== cur[name]) p[name] = Number.isFinite(n) ? n : f[name];
+      }
+      if (Object.keys(p).length) patch.baseline[sym] = p;
+    }
     for (const k of MODEL_ORDER) {
       const cur = data.models[k], f = form.models[k];
       if (!cur || !f) continue;
@@ -156,7 +185,7 @@ export default function ArenaSettings({ apiBase }) {
       return;
     }
     const patch = patchOverride || buildPatch();
-    if (!Object.keys(patch.models).length && !Object.keys(patch.global).length) {
+    if (!Object.keys(patch.models || {}).length && !Object.keys(patch.global || {}).length && !Object.keys(patch.baseline || {}).length) {
       setMsg({ ok: true, text: "Nothing changed." }); return;
     }
     setBusy(true);
@@ -175,6 +204,11 @@ export default function ArenaSettings({ apiBase }) {
   const resetModel = (k) => {
     if (!window.confirm(`Reset ${data.models[k].label} to its default settings?`)) return;
     save({ models: { [k]: { enabled: null, modelId: null, marginUsd: null, leverage: null, slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null } }, global: {} });
+  };
+
+  const resetBase = (sym) => {
+    if (!window.confirm(`Reset ${data.baseline[sym].pair} baseline rules to the defaults?`)) return;
+    save({ models: {}, global: {}, baseline: { [sym]: { tradeUsd: null, leverage: null, slUsd: null, tpUsd: null, paused: null } } });
   };
 
   // ─── locked ───
@@ -287,6 +321,52 @@ export default function ArenaSettings({ apiBase }) {
           </div>
         );
       })}
+
+      {/* baseline */}
+      <div style={card}>
+        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>📊 Baseline (main account)</div>
+        <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginBottom: 12, lineHeight: 1.6 }}>
+          Rules for the main-account bot, per coin. SL and TP are fixed dollar amounts on the position. New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
+        </div>
+        {BASE_ORDER.map((sym) => {
+          const b = (data.baseline || {})[sym], f = form.baseline[sym];
+          if (!b || !f) return null;
+          const margin = parseFloat(f.tradeUsd), lev = parseFloat(f.leverage), sl = parseFloat(f.slUsd), tp = parseFloat(f.tpUsd);
+          const ok = [margin, lev, sl, tp].every(Number.isFinite) && margin > 0 && lev > 0;
+          const notional = ok ? margin * lev : null;
+          const slPct = ok ? sl / notional * 100 : null, tpPct = ok ? tp / notional * 100 : null;
+          const cost = ok ? 2 * FEE_SIDE * notional : null;
+          const be = ok && tp - cost > 0 ? (sl + cost) / ((tp - cost) + (sl + cost)) * 100 : null;
+          return (
+            <div key={sym} style={{ borderTop: "1px solid #21262d", paddingTop: 10, marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ color: "#fff", fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{b.pair}</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, color: f.trading ? GREEN : "#8b949e", fontFamily: MONO, fontSize: 10, cursor: "pointer" }}>
+                  <input type="checkbox" checked={f.trading} onChange={(e) => setBase(sym, "trading", e.target.checked)} />
+                  {f.trading ? "Trading" : "Paused"}
+                </label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {BASE_FIELDS.map(([name, text]) => (
+                  <div key={name}>
+                    <div style={label}>{text.toUpperCase()}{name === "leverage" ? ` · MAX ${data.baselineBounds?.leverage?.[1] ?? 125}` : ""}</div>
+                    <input style={input} inputMode="decimal" value={f[name]} onChange={(e) => setBase(sym, name, e.target.value)} />
+                    {ok && name === "slUsd" && <div style={{ color: RED, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>≈ {slPct.toFixed(2)}% price move</div>}
+                    {ok && name === "tpUsd" && <div style={{ color: GREEN, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>≈ {tpPct.toFixed(2)}% price move</div>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginTop: 8, lineHeight: 1.6 }}>
+                {ok && <>Position ≈ ${notional.toFixed(0)} · fees ≈ ${cost.toFixed(2)} per round trip · reward:risk 1:{(tp / sl).toFixed(2)}{be != null ? ` · break-even win rate ≈ ${be.toFixed(0)}%` : " · TP is smaller than the fees, so every win loses money"}<br /></>}
+                Default: ${b.defaults.tradeUsd} at {b.defaults.leverage}x, SL ${b.defaults.slUsd} / TP ${b.defaults.tpUsd}, {b.defaults.paused ? "paused" : "trading"}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => resetBase(sym)} style={{ ...btn("#8b949e"), padding: "6px 10px", fontSize: 9 }}>Reset {b.pair} to defaults</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* trading window */}
       <div style={card}>
