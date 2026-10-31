@@ -67,7 +67,15 @@ function toForm(d) {
   for (const sym of BASE_ORDER) {
     const b = (d.baseline || {})[sym];
     if (!b) continue;
-    baseline[sym] = { trading: !b.paused, tradeUsd: String(b.tradeUsd), leverage: String(b.leverage), slUsd: String(b.slUsd), tpUsd: String(b.tpUsd) };
+    const nom = b.tradeUsd * b.leverage;
+    const r2 = (n) => String(Math.round(n * 100) / 100);
+    baseline[sym] = {
+      trading: !b.paused, tradeUsd: String(b.tradeUsd), leverage: String(b.leverage),
+      pctMode: b.slPct != null,
+      slUsd: r2(b.slUsd), tpUsd: r2(b.tpUsd),
+      slPct: b.slPct != null ? String(b.slPct) : r2(b.slUsd / nom * 100),
+      tpPct: b.tpPct != null ? String(b.tpPct) : r2(b.tpUsd / nom * 100),
+    };
   }
   const g = d.global;
   const allDay = g.entryFromUtc === 0 && g.entryUntilUtc === 24;
@@ -139,6 +147,19 @@ export default function ArenaSettings({ apiBase }) {
 
   const setModel = (k, f, v) => setForm((s) => ({ ...s, models: { ...s.models, [k]: { ...s.models[k], [f]: v } } }));
 
+  // switch a coin between fixed dollars and fixed percent, carrying the current numbers across
+  const setBaseMode = (sym, pctMode) => setForm((s) => {
+    const f = s.baseline[sym];
+    if (!!f.pctMode === pctMode) return s;
+    const nom = parseFloat(f.tradeUsd) * parseFloat(f.leverage);
+    const r2 = (n) => String(Math.round(n * 100) / 100);
+    const next = { ...f, pctMode };
+    if (Number.isFinite(nom) && nom > 0) {
+      if (pctMode) { next.slPct = r2(parseFloat(f.slUsd) / nom * 100); next.tpPct = r2(parseFloat(f.tpUsd) / nom * 100); }
+      else { next.slUsd = r2(parseFloat(f.slPct) * nom / 100); next.tpUsd = r2(parseFloat(f.tpPct) * nom / 100); }
+    }
+    return { ...s, baseline: { ...s.baseline, [sym]: next } };
+  });
   const setBase = (sym, f, v) => setForm((s) => ({ ...s, baseline: { ...s.baseline, [sym]: { ...s.baseline[sym], [f]: v } } }));
 
   // only what the user actually changed
@@ -149,9 +170,21 @@ export default function ArenaSettings({ apiBase }) {
       if (!cur || !f) continue;
       const p = {};
       if (f.trading !== !cur.paused) p.paused = !f.trading;
+      const pctNow = cur.slPct != null;
       for (const [name] of BASE_FIELDS) {
+        if (f.pctMode && (name === "slUsd" || name === "tpUsd")) continue;   // percent mode: dollars follow the size
+        if (!f.pctMode && pctNow && (name === "slUsd" || name === "tpUsd")) continue;   // set explicitly below
         const n = parseFloat(f[name]);
         if (n !== cur[name]) p[name] = Number.isFinite(n) ? n : f[name];
+      }
+      if (f.pctMode) {
+        for (const name of ["slPct", "tpPct"]) {
+          const n = parseFloat(f[name]);
+          if (!pctNow || n !== cur[name]) p[name] = Number.isFinite(n) ? n : f[name];
+        }
+      } else if (pctNow) {
+        p.slPct = null; p.tpPct = null;                                      // back to fixed dollars
+        for (const name of ["slUsd", "tpUsd"]) { const n = parseFloat(f[name]); p[name] = Number.isFinite(n) ? n : f[name]; }
       }
       if (Object.keys(p).length) patch.baseline[sym] = p;
     }
@@ -341,15 +374,18 @@ export default function ArenaSettings({ apiBase }) {
         </div>
         {baseOpen && (
           <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, margin: "8px 0 4px", lineHeight: 1.6 }}>
-            Rules for the main-account bot, per coin. SL and TP are fixed dollar amounts on the position. New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
+            Rules for the main-account bot, per coin. SL and TP are either fixed dollars on the position or a fixed % of price (then the dollars grow with the size, like the AI models). New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
           </div>
         )}
         {baseOpen && BASE_ORDER.map((sym) => {
           const b = (data.baseline || {})[sym], f = form.baseline[sym];
           if (!b || !f) return null;
-          const margin = parseFloat(f.tradeUsd), lev = parseFloat(f.leverage), sl = parseFloat(f.slUsd), tp = parseFloat(f.tpUsd);
-          const ok = [margin, lev, sl, tp].every(Number.isFinite) && margin > 0 && lev > 0;
+          const margin = parseFloat(f.tradeUsd), lev = parseFloat(f.leverage);
+          const inPct = !!f.pctMode;
+          const slIn = parseFloat(inPct ? f.slPct : f.slUsd), tpIn = parseFloat(inPct ? f.tpPct : f.tpUsd);
+          const ok = [margin, lev, slIn, tpIn].every(Number.isFinite) && margin > 0 && lev > 0;
           const notional = ok ? margin * lev : null;
+          const sl = ok ? (inPct ? notional * slIn / 100 : slIn) : null, tp = ok ? (inPct ? notional * tpIn / 100 : tpIn) : null;
           const slPct = ok ? sl / notional * 100 : null, tpPct = ok ? tp / notional * 100 : null;
           const cost = ok ? 2 * FEE_SIDE * notional : null;
           const be = ok && tp - cost > 0 ? (sl + cost) / ((tp - cost) + (sl + cost)) * 100 : null;
@@ -362,15 +398,38 @@ export default function ArenaSettings({ apiBase }) {
                   {f.trading ? "Trading" : "Paused"}
                 </label>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <span style={{ ...label, marginBottom: 0 }}>STOP / TARGET IN</span>
+                {[[false, "Dollars $"], [true, "Percent %"]].map(([m, text]) => (
+                  <button key={text} onClick={() => setBaseMode(sym, m)} aria-pressed={inPct === m} style={{
+                    cursor: "pointer", fontFamily: MONO, fontSize: 10, padding: "5px 10px", borderRadius: 8,
+                    background: inPct === m ? "#21262d" : "transparent", color: inPct === m ? "#fff" : "#8b949e",
+                    border: `1px solid ${inPct === m ? "#8b949e" : "#30363d"}`, fontWeight: inPct === m ? 700 : 400,
+                  }}>{text}</button>
+                ))}
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {BASE_FIELDS.map(([name, text]) => (
+                {BASE_FIELDS.map(([name, text]) => {
+                  const pctName = name === "slUsd" ? "slPct" : name === "tpUsd" ? "tpPct" : null;
+                  if (pctName && inPct) {
+                    const isSl = name === "slUsd";
+                    return (
+                      <div key={pctName}>
+                        <div style={label}>{isSl ? "SL (% OF PRICE)" : "TP (% OF PRICE)"}</div>
+                        <input style={input} inputMode="decimal" value={f[pctName]} onChange={(e) => setBase(sym, pctName, e.target.value)} />
+                        {ok && <div style={{ color: isSl ? RED : GREEN, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>≈ ${(isSl ? sl : tp).toFixed(2)} on this position</div>}
+                      </div>
+                    );
+                  }
+                  return (
                   <div key={name}>
                     <div style={label}>{text.toUpperCase()}{name === "leverage" ? ` · MAX ${data.baselineBounds?.leverage?.[1] ?? 125}` : ""}</div>
                     <input style={input} inputMode="decimal" value={f[name]} onChange={(e) => setBase(sym, name, e.target.value)} />
                     {ok && name === "slUsd" && <div style={{ color: RED, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>≈ {slPct.toFixed(2)}% price move</div>}
                     {ok && name === "tpUsd" && <div style={{ color: GREEN, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>≈ {tpPct.toFixed(2)}% price move</div>}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginTop: 8, lineHeight: 1.6 }}>
                 {ok && <>Position ≈ ${notional.toFixed(0)} · fees ≈ ${cost.toFixed(2)} per round trip · reward:risk 1:{(tp / sl).toFixed(2)}{be != null ? ` · break-even win rate ≈ ${be.toFixed(0)}%` : " · TP is smaller than the fees, so every win loses money"}<br /></>}
