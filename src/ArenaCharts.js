@@ -327,6 +327,7 @@ export default function ArenaCharts({ trades, labels }) {
         </div>
       )}
 
+      <div className="fx-chart-grid">
       {active.map((k) => {
         const { buckets, sum, best } = per[k];
         const days = buckets.filter((b) => b.n).length;
@@ -359,6 +360,7 @@ export default function ArenaCharts({ trades, labels }) {
           </div>
         );
       })}
+      </div>
 
       {!active.length && (
         <div style={{ border: "1px dashed #30363d", borderRadius: 14, padding: "26px 16px", textAlign: "center", color: MUTED, fontSize: 12, lineHeight: 1.6 }}>

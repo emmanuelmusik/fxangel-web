@@ -363,7 +363,7 @@ function Leaderboard({ rows, openCounts, wallets }) {
   }, [rows]);
 
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div className="fx-cols" style={{ display: "grid", gap: 10 }}>
       {sorted.map((r, i) => {
         const isShadow = !((r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
         const off = (r.mode || "").toLowerCase().startsWith("off");
@@ -480,7 +480,7 @@ function EquityChart({ series, start }) {
           No closed trades yet. Each model's line starts as soon as its first trade closes.
         </div>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Cumulative profit and loss per model">
+        <svg className="fx-eq" viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Cumulative profit and loss per model">
           {ticks.map((v) => (
             <g key={v}>
               <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="#21262d" strokeWidth="1" />
@@ -524,7 +524,7 @@ function EquityChart({ series, start }) {
 function OpenPositions({ open }) {
   if (!open.length) return <Empty>No open positions right now.</Empty>;
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className="fx-cols" style={{ display: "grid", gap: 8 }}>
       {open.map((p) => (
         <Card key={`${p.account}-${p.pair}`} style={{ borderLeft: `3px solid ${colorOf(p.account)}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -571,7 +571,7 @@ function Trades({ trades, reasons, filter }) {
         <span>{wins} wins</span>
         <span style={{ color: pnlColor(total) }}>{money(total)} net</span>
       </div>
-      <div style={{ display: "grid", gap: 6 }}>
+      <div className="fx-cols" style={{ display: "grid", gap: 6 }}>
         {rows.slice(0, limit).map((t) => {
           const id = `${t.account}-${t.pair}-${t.closeTime}`;
           const open = openId === id;
@@ -643,7 +643,7 @@ function Decisions({ decisions, filter, labels }) {
             : "No BUY or SELL decisions yet. The models are asked every 15 minutes inside the trading window, and most answers are SKIP."}
         </Empty>
       ) : (
-        <div style={{ display: "grid", gap: 6 }}>
+        <div className="fx-cols" style={{ display: "grid", gap: 6 }}>
           {rows.slice(0, limit).map((d) => {
             const open = openId === d.id;
             const col = d.action === "BUY" ? GREEN : d.action === "SELL" ? RED : "#8b949e";
