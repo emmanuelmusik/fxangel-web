@@ -20,6 +20,13 @@ const KINDS = [
   { id: "week", label: "Weekly", cap: 26 },
   { id: "month", label: "Monthly", cap: 12 },
 ];
+// how far back each view looks (cap = number of bars; null = everything)
+const RANGES = {
+  day: [{ label: "7 days", cap: 7 }, { label: "14 days", cap: 14 }, { label: "30 days", cap: 30 }, { label: "90 days", cap: 90 }, { label: "All", cap: null }],
+  week: [{ label: "4 weeks", cap: 4 }, { label: "12 weeks", cap: 12 }, { label: "26 weeks", cap: 26 }, { label: "All", cap: null }],
+  month: [{ label: "3 months", cap: 3 }, { label: "6 months", cap: 6 }, { label: "12 months", cap: 12 }, { label: "All", cap: null }],
+};
+const DEFAULT_RANGE = { day: 30, week: 26, month: 12 };
 
 const money = (n, digits = 2) => {
   if (n == null || !Number.isFinite(n)) return "–";
@@ -58,8 +65,8 @@ function longLabel(s, kind) {
 }
 
 // trades: [{ closeTime, pnl }]; returns one bucket per period, empty periods included
-export function buildBuckets(trades, kind, nowMs = Date.now()) {
-  const cap = (KINDS.find((k) => k.id === kind) || KINDS[0]).cap;
+export function buildBuckets(trades, kind, nowMs = Date.now(), capArg) {
+  const cap = capArg === undefined ? (KINDS.find((k) => k.id === kind) || KINDS[0]).cap : (capArg == null ? 3650 : capArg);
   const rows = (trades || []).filter((t) => t && Number.isFinite(new Date(t.closeTime).getTime()));
   if (!rows.length) return [];
   const firstMs = Math.min(...rows.map((t) => new Date(t.closeTime).getTime()));
@@ -224,16 +231,21 @@ const pill = (on) => ({
 export default function ArenaCharts({ trades, labels }) {
   const [kind, setKind] = useState("day");
   const [view, setView] = useState("chart");
+  const [ranges, setRanges] = useState(DEFAULT_RANGE);
+  const rangeCap = ranges[kind];
 
   const accounts = useMemo(() => ORDER.filter((k) => labels && labels[k]), [labels]);
   const per = useMemo(() => {
     const out = {};
     for (const k of accounts) {
       const mine = (trades || []).filter((t) => t.account === k);
-      out[k] = { mine, buckets: buildBuckets(mine, kind), sum: summarize(mine) };
+      out[k] = { mine, buckets: buildBuckets(mine, kind, Date.now(), rangeCap), sum: null };
+      const bk = out[k].buckets;
+      const w = bk.reduce((t, b) => t + b.w, 0), l = bk.reduce((t, b) => t + b.l, 0);
+      out[k].sum = { net: +bk.reduce((t, b) => t + b.net, 0).toFixed(2), n: bk.reduce((t, b) => t + b.n, 0), w, l, rate: w + l ? Math.round((w / (w + l)) * 100) : null };
     }
     return out;
-  }, [trades, accounts, kind]);
+  }, [trades, accounts, kind, rangeCap]);
 
   const active = accounts.filter((k) => per[k].mine.length);
   const idle = accounts.filter((k) => !per[k].mine.length);
@@ -248,6 +260,13 @@ export default function ArenaCharts({ trades, labels }) {
           <button onClick={() => setView("chart")} style={pill(view === "chart")}>Chart</button>
           <button onClick={() => setView("table")} style={pill(view === "table")}>Table</button>
         </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}>
+        <span style={{ color: MUTED, fontFamily: MONO, fontSize: 9, alignSelf: "center", flexShrink: 0 }}>SHOW</span>
+        {RANGES[kind].map((r) => (
+          <button key={r.label} onClick={() => setRanges({ ...ranges, [kind]: r.cap })} style={pill(rangeCap === r.cap)}>{r.label}</button>
+        ))}
       </div>
 
       {active.map((k) => {
