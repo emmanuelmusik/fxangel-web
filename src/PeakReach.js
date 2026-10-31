@@ -75,3 +75,43 @@ export default function PeakReach({ groups }) {
     </div>
   );
 }
+
+// One trade's run-and-give-back bar (same look as the Peaks tab).
+// t: { entryPrice | entry, closePrice, qty, peakProfit, pnl, direction }
+export function PeakBar({ t }) {
+  const entry = parseFloat(t.entry ?? t.entryPrice);
+  const close = parseFloat(t.closePrice);
+  const qty = parseFloat(t.qty);
+  const pk = parseFloat(t.peakProfit);
+  const pnl = parseFloat(t.pnl);
+  if (!(entry > 0) || !(qty > 0) || !Number.isFinite(pk) || !Number.isFinite(close)) return null;
+  const dir = t.direction === "BUY" ? 1 : -1;
+  const peakDist = Math.max(0, pk / qty);                 // price distance the trade ran in profit
+  const closeDist = dir * (close - entry);
+  const scale = Math.max(Math.abs(peakDist), Math.abs(closeDist), 1e-9);
+  const peakPct = 50 + (peakDist / scale) * 44;
+  const closePct = 50 + (closeDist / scale) * 44;
+  const giveBack = pk - (Number.isFinite(pnl) ? pnl : 0);
+  const win = Number.isFinite(pnl) ? pnl >= 0 : closeDist >= 0;
+  const pricePct = (peakDist / entry) * 100;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ position: "relative", height: 16, background: "#161b22", borderRadius: 8, marginBottom: 4 }}>
+        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "#30363d" }} />
+        <div style={{ position: "absolute", top: 6, height: 4, borderRadius: 2, background: "#ffa50230", left: `${Math.min(50, peakPct)}%`, width: `${Math.abs(peakPct - 50)}%` }} />
+        {giveBack > 0.05 && (
+          <div style={{ position: "absolute", top: 7, height: 2, background: "repeating-linear-gradient(90deg, #ff4757 0 4px, transparent 4px 7px)", left: `${Math.min(peakPct, closePct)}%`, width: `${Math.abs(peakPct - closePct)}%` }} />
+        )}
+        <div style={{ position: "absolute", top: 2, width: 10, height: 10, borderRadius: "50%", background: AMBER, border: "2px solid #0d1117", left: `${peakPct}%`, transform: "translateX(-50%)", zIndex: 2 }} />
+        <div style={{ position: "absolute", top: 2, width: 10, height: 10, borderRadius: "50%", background: win ? GREEN : "#ff4757", border: "2px solid #0d1117", left: `${closePct}%`, transform: "translateX(-50%)", zIndex: 3 }} />
+      </div>
+      <div style={{ fontSize: 9, fontFamily: MONO, color: giveBack > 0.5 ? AMBER : "#8b949e" }}>
+        {pk <= 0
+          ? "never went green"
+          : giveBack > 0.05
+            ? `peak +$${pk.toFixed(2)} (${pricePct.toFixed(2)}%) · gave back $${giveBack.toFixed(2)}`
+            : `peak +$${pk.toFixed(2)} (${pricePct.toFixed(2)}%) · captured cleanly`}
+      </div>
+    </div>
+  );
+}
