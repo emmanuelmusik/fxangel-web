@@ -332,7 +332,7 @@ export default function ArenaCharts({ trades, labels }) {
         const { buckets, sum, best } = per[k];
         const days = buckets.filter((b) => b.n).length;
         return (
-          <div key={k} style={{ background: `linear-gradient(135deg, ${COLORS[k]}24 0%, ${COLORS[k]}0d 38%, #0b0f14 75%)`, border: `1px solid ${COLORS[k]}40`, borderRadius: 16, padding: 14, marginBottom: 12, position: "relative", overflow: "hidden" }}>
+          <div key={k} style={{ background: `linear-gradient(135deg, ${COLORS[k]}3d 0%, ${COLORS[k]}1c 42%, #0b0f14 75%)`, border: `1px solid ${COLORS[k]}66`, borderRadius: 16, padding: 14, marginBottom: 12, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: COLORS[k] }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8 }}>
               <div>

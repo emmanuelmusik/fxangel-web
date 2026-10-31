@@ -21,8 +21,8 @@ const COLORS = {
 const colorOf = (k) => COLORS[k] || "#8b949e";
 // card look per account: soft colour wash, coloured edge, so each model is recognisable at a glance
 const tint = (k) => ({
-  background: `linear-gradient(135deg, ${colorOf(k)}24 0%, ${colorOf(k)}0d 38%, #0d1117 75%)`,
-  border: `1px solid ${colorOf(k)}40`,
+  background: `linear-gradient(135deg, ${colorOf(k)}3d 0%, ${colorOf(k)}1c 42%, #0d1117 75%)`,
+  border: `1px solid ${colorOf(k)}66`,
   borderLeft: `4px solid ${colorOf(k)}`,
 });
 const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
