@@ -605,6 +605,8 @@ function Decisions({ decisions, filter, labels }) {
 export default function Arena({ baselineTrades }) {
   const [data, setData] = useState({ loaded: false });
   const [filter, setFilter] = useState("all");
+  const [section, setSection] = useState(() => { try { return sessionStorage.getItem("arenaSection") || "overview"; } catch { return "overview"; } });
+  const pickSection = (id) => { setSection(id); try { sessionStorage.setItem("arenaSection", id); } catch {} };
   const [updated, setUpdated] = useState(null);
 
   const load = useCallback(async () => {
@@ -718,25 +720,63 @@ export default function Arena({ baselineTrades }) {
 
       <StatusStrip status={status} />
 
-      <SectionTitle>STANDINGS</SectionTitle>
-      <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
+      <div role="tablist" style={{ display: "flex", gap: 6, overflowX: "auto", margin: "14px 0 4px", paddingBottom: 2 }}>
+        {[
+          { id: "overview", label: "Overview", n: data.open.length ? `${data.open.length} open` : "" },
+          { id: "charts", label: "Charts" },
+          { id: "trades", label: "Trades", n: trades.length ? String(trades.length) : "" },
+          { id: "decisions", label: "Decisions" },
+        ].map((t) => {
+          const on = section === t.id;
+          return (
+            <button key={t.id} role="tab" aria-selected={on} onClick={() => pickSection(t.id)} style={{
+              flexShrink: 0, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "8px 14px", borderRadius: 18,
+              background: on ? "#ff475718" : "#0d1117", border: `1px solid ${on ? "#ff4757" : "#30363d"}`,
+              color: on ? "#ff4757" : "#8b949e", fontWeight: on ? 700 : 400,
+            }}>
+              {t.label}{t.n ? <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 9 }}>{t.n}</span> : null}
+            </button>
+          );
+        })}
+      </div>
 
-      <SectionTitle>PROFIT OVER TIME</SectionTitle>
-      <EquityChart series={series} start={since} />
+      {section === "overview" && (
+        <>
+          <SectionTitle>STANDINGS</SectionTitle>
+          <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
 
-      <SectionTitle>DAILY · WEEKLY · MONTHLY</SectionTitle>
-      <ArenaCharts trades={trades} labels={labels} />
+          <SectionTitle right={<span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span>}>OPEN NOW</SectionTitle>
+          <OpenPositions open={data.open} />
+        </>
+      )}
 
-      <SectionTitle right={<span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span>}>OPEN NOW</SectionTitle>
-      <OpenPositions open={data.open} />
+      {section === "charts" && (
+        <>
+          <SectionTitle>PROFIT OVER TIME</SectionTitle>
+          <EquityChart series={series} start={since} />
 
-      <SectionTitle>TRADES</SectionTitle>
-      <Chips options={filterOptions} value={filter} onChange={setFilter} />
-      <div style={{ height: 10 }} />
-      <Trades trades={trades} reasons={reasons} filter={filter} />
+          <SectionTitle>DAILY · WEEKLY · MONTHLY</SectionTitle>
+          <ArenaCharts trades={trades} labels={labels} />
+        </>
+      )}
 
-      <SectionTitle>MODEL DECISIONS</SectionTitle>
-      <Decisions decisions={data.decisions || []} filter={filter} labels={labels} />
+      {section === "trades" && (
+        <>
+          <SectionTitle>TRADES</SectionTitle>
+          <Chips options={filterOptions} value={filter} onChange={setFilter} />
+          <div style={{ height: 10 }} />
+          <Trades trades={trades} reasons={reasons} filter={filter} />
+        </>
+      )}
+
+      {section === "decisions" && (
+        <>
+          <SectionTitle>MODEL DECISIONS</SectionTitle>
+          <Chips options={filterOptions} value={filter} onChange={setFilter} />
+          <div style={{ height: 10 }} />
+          <Decisions decisions={data.decisions || []} filter={filter} labels={labels} />
+        </>
+      )}
     </div>
   );
 }
