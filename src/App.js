@@ -1826,8 +1826,10 @@ export default function FXAngel() {
           .fx-bottom { display:none !important; }
           .fx-hdrrow { display:none !important; }
           .fx-content { padding:20px 32px 48px !important; max-width:1280px; }
-          .fx-cols { grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); align-items:start; }
-          .fx-chart-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); column-gap:14px; align-items:start; }
+          .fx-cols { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+          .fx-cols > :last-child:nth-child(odd) { grid-column:1 / -1; }
+          .fx-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:14px; align-items:start; }
+          .fx-chart-grid > :last-child:nth-child(odd) { grid-column:1 / -1; }
           .fx-eq { max-width:700px; margin:0 auto; }
           .fx-narrow { max-width:960px; }
           .fx-masonry { column-count:2; column-gap:14px; }
