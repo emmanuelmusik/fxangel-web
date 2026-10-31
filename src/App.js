@@ -713,7 +713,7 @@ export default function FXAngel() {
   const liveSignals = signals.filter(s => s.status === "active");
 
   return (
-    <div style={{
+    <div className="fx-shell" style={{
       background: "#010409", minHeight: "100vh", color: "#cdd9e5",
       fontFamily: "'Inter', sans-serif", maxWidth: 480,
       margin: "0 auto", position: "relative",
@@ -746,8 +746,8 @@ export default function FXAngel() {
         background: "#0d1117", borderBottom: "1px solid #21262d",
         padding: "14px 18px 10px", position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div>
+        <div className="fx-hdrrow" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div className="fx-hdrlogo">
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <img src="/logo-96.png" alt="FXAngel" width={42} height={42} style={{ borderRadius: 9, display: "block" }} />
               <span style={{
@@ -803,7 +803,7 @@ export default function FXAngel() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 14px 100px", position: "relative", zIndex: 1 }}>
+      <div className="fx-content" style={{ padding: "14px 14px 100px", position: "relative", zIndex: 1 }}>
 
         {/* ── ARENA TAB ── */}
         {activeTab === "arena" && <Arena baselineTrades={tradeHistory?.trades} />}
@@ -1723,8 +1723,51 @@ export default function FXAngel() {
         </div>
       )}
 
+      {/* Desktop sidebar (hidden on phones) */}
+      <nav className="fx-side" aria-label="Main menu">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 18px 14px" }}>
+          <img src="/logo-96.png" alt="FXAngel" width={40} height={40} style={{ borderRadius: 9, display: "block" }} />
+          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: 4, color: "#fff" }}>
+            <span style={{ color: "#00e5a0" }}>FX</span>ANGEL
+          </span>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 12px" }}>
+          {menuGroups.map(g => (
+            <div key={g.title} style={{ marginTop: 14 }}>
+              <div style={{ color: "#484f58", fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: 1.5, margin: "0 8px 6px" }}>{g.title}</div>
+              {g.ids.map(id => {
+                const t = tabById[id]; const on = activeTab === id;
+                return (
+                  <button key={id} onClick={() => goTab(id)} className="fx-side-item" style={{
+                    background: on ? "#ff475712" : "transparent", borderColor: on ? "#ff475755" : "transparent",
+                  }}>
+                    <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{t.icon}</span>
+                    <span style={{ flex: 1, textAlign: "left", color: on ? "#ff4757" : "#cdd9e5", fontSize: 13, fontWeight: on ? 700 : 500 }}>{t.label}</span>
+                    {id === "signals" && liveSignals.length > 0 && (
+                      <span style={{ background: "#ff4757", color: "#fff", borderRadius: 10, fontSize: 10, fontWeight: 700, padding: "1px 7px", fontFamily: "'Space Mono', monospace" }}>{liveSignals.length}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ color: "#484f58", fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: 1.5, margin: "0 8px 6px" }}>MORE</div>
+            <a href="https://arbangel-frontend.vercel.app/" target="_top" className="fx-side-item" style={{ textDecoration: "none", boxSizing: "border-box" }}>
+              <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>🎯</span>
+              <span style={{ flex: 1, color: "#ffa502", fontSize: 13, fontWeight: 600 }}>ArbAngel</span>
+              <span style={{ color: "#ffa502" }}>→</span>
+            </a>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid #21262d", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <StatusDot connected={connected} />
+          <span style={{ color: "#8b949e", fontSize: 10, fontFamily: "'Space Mono', monospace" }}>{getLocalTimeString()}</span>
+        </div>
+      </nav>
+
       {/* Bottom Nav */}
-      <div style={{
+      <div className="fx-bottom" style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
         width: "100%", maxWidth: 480,
         background: "linear-gradient(180deg, transparent 0%, #010409 25%)",
@@ -1767,6 +1810,18 @@ export default function FXAngel() {
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
         input::placeholder { color: #484f58; }
         ::-webkit-scrollbar { width:0; height:0; }
+        .fx-side { display:none; position:fixed; top:0; left:0; bottom:0; width:232px; flex-direction:column;
+          background:#0d1117; border-right:1px solid #21262d; z-index:150; box-sizing:border-box; }
+        .fx-side-item { width:100%; display:flex; align-items:center; gap:10px; cursor:pointer; background:transparent;
+          border:1px solid transparent; border-radius:9px; padding:9px 10px; margin-bottom:3px; min-height:40px; }
+        .fx-side-item:hover { background:#161b22 !important; }
+        @media (min-width: 900px) {
+          .fx-shell { max-width:none !important; margin:0 !important; padding-left:232px; }
+          .fx-side { display:flex; }
+          .fx-bottom { display:none !important; }
+          .fx-hdrrow { display:none !important; }
+          .fx-content { padding:20px 32px 48px !important; max-width:1280px; }
+        }
       `}</style>
     </div>
   );
