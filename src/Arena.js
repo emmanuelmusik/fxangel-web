@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ArenaCharts from "./ArenaCharts";
 import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
+import CloseAll from "./CloseAll";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -873,7 +874,7 @@ export default function Arena({ baselineTrades }) {
           <SectionTitle>STANDINGS</SectionTitle>
           <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
 
-          <SectionTitle right={<span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span>}>OPEN NOW</SectionTitle>
+          <SectionTitle right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span><CloseAll open={data.open} onDone={load} /></span>}>OPEN NOW</SectionTitle>
           <OpenPositions open={data.open} />
         </>
       )}
