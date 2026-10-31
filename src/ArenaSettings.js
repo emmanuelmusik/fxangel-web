@@ -91,9 +91,13 @@ function toForm(d) {
   };
 }
 
-export default function ArenaSettings({ apiBase }) {
+export default function ArenaSettings({ apiBase, onUnlockChange }) {
   const [pw, setPw] = useState(() => { try { return sessionStorage.getItem(PW_KEY) || ""; } catch { return ""; } });
   const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => {
+    if (onUnlockChange) onUnlockChange(unlocked);
+    return () => { if (onUnlockChange) onUnlockChange(false); };
+  }, [unlocked, onUnlockChange]);
   const [typed, setTyped] = useState("");
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null);
