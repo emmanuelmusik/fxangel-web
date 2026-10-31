@@ -86,6 +86,7 @@ function toForm(d) {
     fromG: (g.entryFromUtc + 1) % 24,                 // GMT+1 hour entries start
     untilG: ((g.entryUntilUtc + 1 - 1) % 24) + 1,     // GMT+1 hour entries stop (1-24)
     sunday: !!g.sundayBlock,
+    compact: !!g.compactSnapshot,
     pairs: [...g.arenaPairs],
   };
 }
@@ -207,6 +208,7 @@ export default function ArenaSettings({ apiBase }) {
     if (from !== g.entryFromUtc) patch.global.entryFromUtc = from;
     if (until !== g.entryUntilUtc) patch.global.entryUntilUtc = until;
     if (form.sunday !== g.sundayBlock) patch.global.sundayBlock = form.sunday;
+    if (form.compact !== !!g.compactSnapshot) patch.global.compactSnapshot = form.compact;
     const a = [...form.pairs].sort().join(","), b = [...g.arenaPairs].sort().join(",");
     if (a !== b) patch.global.arenaPairs = form.pairs;
     return patch;
@@ -475,6 +477,24 @@ export default function ArenaSettings({ apiBase }) {
         </label>
         <div style={{ color: "#5a6573", fontSize: 9, fontFamily: MONO, marginTop: 8 }}>
           High-impact news pauses (±60 min) are fixed. Open trades are never closed by the window.
+        </div>
+      </div>
+
+      {/* compact report */}
+      <div style={card}>
+        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>🗜️ Compact market report</div>
+        <div style={{ color: AMBER, fontSize: 9, fontFamily: MONO, marginBottom: 10 }}>
+          Applies to every model at once, so the comparison stays fair.
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, color: form.compact ? GREEN : "#fff", fontFamily: MONO, fontSize: 11, cursor: "pointer" }}>
+          <input type="checkbox" checked={form.compact} onChange={(e) => setForm((s) => ({ ...s, compact: e.target.checked }))} />
+          {form.compact ? "Compact report is ON" : "Compact report is off (full report)"}
+        </label>
+        <div style={{ color: "#8b949e", fontSize: 10, fontFamily: MONO, marginTop: 8, lineHeight: 1.6 }}>
+          Sends fewer candles with each question: 5m 6 (full 12), 15m 16 (full 32), 1h 24 (full 36), 4h 12 (full 24). The news part is short unless an event is within 3 hours. Daily candles, levels, flow and derivatives are unchanged. Cheaper per call; the models see a shorter history.
+        </div>
+        <div style={{ color: "#5a6573", fontSize: 9, fontFamily: MONO, marginTop: 8 }}>
+          Changes apply from the next 15-minute round.
         </div>
       </div>
 
