@@ -497,6 +497,7 @@ function mergeAndCacheHistory(fresh, cached) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function FXAngel() {
   const [activeTab, setActiveTab] = useState("arena");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("ALL");
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
@@ -685,14 +686,29 @@ export default function FXAngel() {
   })();
 
   const tabs = [
-    { id: "arena", label: "Arena", icon: "🏟️" },
-    { id: "signals", label: "Signals", icon: "⚡" },
-    { id: "history", label: "History", icon: "📋" },
-    { id: "peaks", label: "Peaks", icon: "📈" },
-    { id: "news", label: "News", icon: "📰" },
-    { id: "analysis", label: "AI TA", icon: "🧠" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
+    { id: "arena", label: "Arena", icon: "🏟️", desc: "Standings, profit charts, open trades" },
+    { id: "settings", label: "Settings", icon: "⚙️", desc: "Models, pairs, baseline rules" },
+    { id: "signals", label: "Signals", icon: "⚡", desc: "Active FX and crypto signals" },
+    { id: "history", label: "History", icon: "📋", desc: "Closed trades from Binance and models" },
+    { id: "peaks", label: "Peaks", icon: "📈", desc: "How far trades ran before closing" },
+    { id: "news", label: "News", icon: "📰", desc: "Market news" },
+    { id: "analysis", label: "AI TA", icon: "🧠", desc: "AI technical analysis" },
   ];
+  const tabById = Object.fromEntries(tabs.map(t => [t.id, t]));
+  const menuGroups = [
+    { title: "AI ARENA", ids: ["arena", "settings"] },
+    { title: "TRADING", ids: ["signals", "history", "peaks"] },
+    { title: "RESEARCH", ids: ["news", "analysis"] },
+  ];
+  const barIds = ["arena", "signals", "history", "settings"];
+  const goTab = (id) => { setActiveTab(id); setMenuOpen(false); window.scrollTo(0, 0); };
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const h = (e) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [menuOpen]);
 
   const liveSignals = signals.filter(s => s.status === "active");
 
@@ -1649,6 +1665,64 @@ export default function FXAngel() {
         )}
       </div>
 
+      {/* Menu sheet */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(1,4,9,0.72)", zIndex: 200 }}>
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Menu" style={{
+            position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
+            width: "100%", maxWidth: 480, maxHeight: "86vh", overflowY: "auto",
+            background: "#0d1117", borderTop: "1px solid #30363d", borderRadius: "16px 16px 0 0",
+            padding: "14px 16px 28px", boxSizing: "border-box", animation: "sheetUp .18s ease-out",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: "#fff" }}>MENU</div>
+              <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{
+                background: "#161b22", border: "1px solid #30363d", color: "#8b949e", borderRadius: 8,
+                width: 32, height: 32, fontSize: 16, cursor: "pointer",
+              }}>✕</button>
+            </div>
+            {menuGroups.map(g => (
+              <div key={g.title} style={{ marginTop: 12 }}>
+                <div style={{ color: "#484f58", fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: 1.5, margin: "0 2px 6px" }}>{g.title}</div>
+                {g.ids.map(id => {
+                  const t = tabById[id]; const on = activeTab === id;
+                  return (
+                    <button key={id} onClick={() => goTab(id)} style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 12, textAlign: "left", cursor: "pointer",
+                      background: on ? "#ff475712" : "#161b22", border: `1px solid ${on ? "#ff475755" : "#21262d"}`,
+                      borderRadius: 10, padding: "11px 12px", marginBottom: 6, minHeight: 48,
+                    }}>
+                      <span style={{ fontSize: 20, width: 26, textAlign: "center" }}>{t.icon}</span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ display: "block", color: on ? "#ff4757" : "#fff", fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+                        <span style={{ display: "block", color: "#8b949e", fontSize: 10, marginTop: 2 }}>{t.desc}</span>
+                      </span>
+                      {id === "signals" && liveSignals.length > 0 && (
+                        <span style={{ background: "#ff4757", color: "#fff", borderRadius: 10, fontSize: 10, fontWeight: 700, padding: "1px 7px", fontFamily: "'Space Mono', monospace" }}>{liveSignals.length}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ color: "#484f58", fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: 1.5, margin: "0 2px 6px" }}>MORE</div>
+              <a href="https://arbangel-frontend.vercel.app/" target="_top" style={{
+                display: "flex", alignItems: "center", gap: 12, textDecoration: "none", background: "#ffa50210",
+                border: "1px solid #ffa50240", borderRadius: 10, padding: "11px 12px", minHeight: 48, boxSizing: "border-box",
+              }}>
+                <span style={{ fontSize: 20, width: 26, textAlign: "center" }}>🎯</span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "block", color: "#ffa502", fontSize: 13, fontWeight: 600 }}>ArbAngel</span>
+                  <span style={{ display: "block", color: "#8b949e", fontSize: 10, marginTop: 2 }}>Sports arbitrage scout (opens the other app)</span>
+                </span>
+                <span style={{ color: "#ffa502" }}>→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Nav */}
       <div style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
@@ -1657,8 +1731,8 @@ export default function FXAngel() {
         backdropFilter: "blur(20px)", borderTop: "1px solid #21262d",
         display: "flex", padding: "10px 0 18px", zIndex: 100,
       }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+        {barIds.map(id => tabById[id]).map(tab => (
+          <button key={tab.id} onClick={() => goTab(tab.id)} style={{
             flex: 1, background: "none", border: "none", cursor: "pointer",
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 0",
           }}>
@@ -1673,11 +1747,23 @@ export default function FXAngel() {
             )}
           </button>
         ))}
+        <button onClick={() => setMenuOpen(true)} aria-label="Open menu" style={{
+          flex: 1, background: "none", border: "none", cursor: "pointer",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 0",
+        }}>
+          <div style={{ fontSize: 18, color: barIds.includes(activeTab) ? "#484f58" : "#ff4757", lineHeight: "22px" }}>☰</div>
+          <div style={{
+            fontSize: 9, fontFamily: "'Space Mono', monospace",
+            color: barIds.includes(activeTab) ? "#8b949e" : "#ff4757",
+            fontWeight: barIds.includes(activeTab) ? 400 : 700,
+          }}>{barIds.includes(activeTab) ? "Menu" : tabById[activeTab].label}</div>
+        </button>
       </div>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes sheetUp { from{transform:translate(-50%,24px);opacity:0} to{transform:translate(-50%,0);opacity:1} }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
         input::placeholder { color: #484f58; }
         ::-webkit-scrollbar { width:0; height:0; }
