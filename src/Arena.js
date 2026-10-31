@@ -472,7 +472,7 @@ function Trades({ trades, reasons, filter }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 14, color: "#8b949e", fontFamily: MONO, fontSize: 10, margin: "0 2px 8px" }}>
-        <span>{rows.length} trades</span>
+        <span>{rows.length} trades{rows.length > limit ? ` (showing ${limit})` : ""}</span>
         <span>{wins} wins</span>
         <span style={{ color: pnlColor(total) }}>{money(total)} net</span>
       </div>
@@ -519,7 +519,7 @@ function Trades({ trades, reasons, filter }) {
           onClick={() => setLimit(limit + 25)}
           style={{ width: "100%", marginTop: 10, background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 10, padding: 10, fontFamily: MONO, fontSize: 11, cursor: "pointer" }}
         >
-          Show more
+          Show more ({rows.length - limit} left)
         </button>
       )}
     </div>
