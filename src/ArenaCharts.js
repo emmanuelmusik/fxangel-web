@@ -176,7 +176,7 @@ function BarChart({ buckets, kind, name }) {
         })}
       </svg>
       {cur && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "0 2px", fontFamily: MONO, fontSize: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginTop: 8, padding: "8px 8px 0", borderTop: "1px solid #161b22", fontFamily: MONO, fontSize: 10 }}>
           <span style={{ color: MUTED }}>{longLabel(cur.start, kind)}</span>
           <span>
             <span style={{ color: signColor(cur.net), fontSize: 13, fontWeight: 700 }}>{cur.n ? money(cur.net) : "no trades"}</span>
@@ -213,19 +213,39 @@ function TableView({ buckets, kind }) {
   );
 }
 
-function Stat({ label, value, color }) {
+const BEBAS = "'Bebas Neue', sans-serif";
+
+// segmented control: one rounded track, the chosen option slides in as a filled chip
+function Segmented({ options, value, onChange, small, scroll }) {
   return (
-    <div>
-      <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ color: color || "#fff", fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{value}</div>
+    <div style={{
+      display: "flex", gap: 2, background: "#010409", border: "1px solid #21262d", borderRadius: 12, padding: 3,
+      overflowX: scroll ? "auto" : "visible", flexShrink: 0,
+    }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button key={o.label} onClick={() => onChange(o.value)} aria-pressed={on} style={{
+            flex: scroll ? "0 0 auto" : 1, cursor: "pointer", border: "none", borderRadius: 9, whiteSpace: "nowrap",
+            padding: small ? "6px 10px" : "9px 12px", fontFamily: MONO, fontSize: small ? 10 : 11, fontWeight: on ? 700 : 400,
+            background: on ? "#21262d" : "transparent", color: on ? "#fff" : MUTED,
+            boxShadow: on ? "inset 0 0 0 1px #30363d" : "none",
+          }}>{o.label}</button>
+        );
+      })}
     </div>
   );
 }
 
-const pill = (on) => ({
-  background: on ? "#ffffff14" : "transparent", border: `1px solid ${on ? "#8b949e" : "#30363d"}`,
-  color: on ? "#fff" : MUTED, borderRadius: 16, padding: "5px 12px", fontFamily: MONO, fontSize: 10, cursor: "pointer", flexShrink: 0,
-});
+function Tile({ label, value, sub, color }) {
+  return (
+    <div style={{ flex: 1, background: "#010409", border: "1px solid #161b22", borderRadius: 10, padding: "8px 10px", minWidth: 0 }}>
+      <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, letterSpacing: 0.8 }}>{label}</div>
+      <div style={{ color: color || "#fff", fontFamily: MONO, fontSize: 15, fontWeight: 700, marginTop: 2 }}>{value}</div>
+      {sub != null && <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 1 }}>{sub}</div>}
+    </div>
+  );
+}
 
 // trades: every closed trade (all accounts), labels: account -> display name
 export default function ArenaCharts({ trades, labels }) {
@@ -239,61 +259,69 @@ export default function ArenaCharts({ trades, labels }) {
     const out = {};
     for (const k of accounts) {
       const mine = (trades || []).filter((t) => t.account === k);
-      out[k] = { mine, buckets: buildBuckets(mine, kind, Date.now(), rangeCap), sum: null };
-      const bk = out[k].buckets;
-      const w = bk.reduce((t, b) => t + b.w, 0), l = bk.reduce((t, b) => t + b.l, 0);
-      out[k].sum = { net: +bk.reduce((t, b) => t + b.net, 0).toFixed(2), n: bk.reduce((t, b) => t + b.n, 0), w, l, rate: w + l ? Math.round((w / (w + l)) * 100) : null };
+      const buckets = buildBuckets(mine, kind, Date.now(), rangeCap);
+      const w = buckets.reduce((t, b) => t + b.w, 0), l = buckets.reduce((t, b) => t + b.l, 0);
+      const best = buckets.reduce((m, b) => (b.n && (m == null || b.net > m.net) ? b : m), null);
+      out[k] = {
+        mine, buckets, best,
+        sum: { net: +buckets.reduce((t, b) => t + b.net, 0).toFixed(2), n: buckets.reduce((t, b) => t + b.n, 0), w, l, rate: w + l ? Math.round((w / (w + l)) * 100) : null },
+      };
     }
     return out;
   }, [trades, accounts, kind, rangeCap]);
 
   const active = accounts.filter((k) => per[k].mine.length);
   const idle = accounts.filter((k) => !per[k].mine.length);
+  const unit = kind === "day" ? "day" : kind === "week" ? "week" : "month";
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          {KINDS.map((k) => <button key={k.id} onClick={() => setKind(k.id)} style={pill(kind === k.id)}>{k.label}</button>)}
+      <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 14, padding: 10, marginBottom: 12 }}>
+        <Segmented options={KINDS.map((k) => ({ label: k.label, value: k.id }))} value={kind} onChange={setKind} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+            <Segmented small scroll options={RANGES[kind].map((r) => ({ label: r.cap == null ? "All" : r.label.replace(" days", "d").replace(" weeks", "w").replace(" months", "m"), value: r.cap }))}
+              value={rangeCap} onChange={(v) => setRanges({ ...ranges, [kind]: v })} />
+          </div>
+          <Segmented small options={[{ label: "▮▯▮ Chart", value: "chart" }, { label: "☰ Table", value: "table" }]} value={view} onChange={setView} />
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => setView("chart")} style={pill(view === "chart")}>Chart</button>
-          <button onClick={() => setView("table")} style={pill(view === "table")}>Table</button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}>
-        <span style={{ color: MUTED, fontFamily: MONO, fontSize: 9, alignSelf: "center", flexShrink: 0 }}>SHOW</span>
-        {RANGES[kind].map((r) => (
-          <button key={r.label} onClick={() => setRanges({ ...ranges, [kind]: r.cap })} style={pill(rangeCap === r.cap)}>{r.label}</button>
-        ))}
       </div>
 
       {active.map((k) => {
-        const { buckets, sum } = per[k];
+        const { buckets, sum, best } = per[k];
+        const days = buckets.filter((b) => b.n).length;
         return (
-          <div key={k} style={{ background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid ${COLORS[k]}`, borderRadius: 12, padding: "12px 12px 10px", marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[k] }} />
-                <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{String(labels[k]).replace(" (rules engine)", "")}</span>
-              </span>
-              <div style={{ display: "flex", gap: 16 }}>
-                <Stat label="NET" value={money(sum.net)} color={signColor(sum.net)} />
-                <Stat label="TRADES" value={sum.n} />
-                <Stat label="WIN RATE" value={sum.rate == null ? "–" : `${sum.rate}%`} />
+          <div key={k} style={{ background: "linear-gradient(180deg,#0f141b 0%,#0b0f14 100%)", border: "1px solid #21262d", borderRadius: 16, padding: 14, marginBottom: 12, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: COLORS[k] }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS[k] }} />
+                  <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{String(labels[k]).replace(" (rules engine)", "")}</span>
+                </div>
+                <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 4 }}>{sum.n} trades · {days} active {unit}{days === 1 ? "" : "s"}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ color: signColor(sum.net), fontFamily: BEBAS, fontSize: 34, letterSpacing: 1, lineHeight: 0.95 }}>{money(sum.net)}</div>
+                <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, letterSpacing: 0.8, marginTop: 2 }}>NET IN THIS RANGE</div>
               </div>
             </div>
-            <div style={{ color: MUTED, fontFamily: MONO, fontSize: 9, margin: "-4px 0 8px" }}>
-              {sum.n} trades in {buckets.filter((b) => b.n).length} {kind === "day" ? "days" : kind === "week" ? "weeks" : "months"}; each bar adds up all trades closed in that {kind}
+
+            <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+              <Tile label="WIN RATE" value={sum.rate == null ? "–" : `${sum.rate}%`} sub={`${sum.w}W · ${sum.l}L`} />
+              <Tile label={`BEST ${unit.toUpperCase()}`} value={best ? money(best.net) : "–"} color={best ? signColor(best.net) : undefined} sub={best ? shortLabel(best.start, kind) : ""} />
+              <Tile label={`AVG / ${unit.toUpperCase()}`} value={days ? money(sum.net / days) : "–"} color={days ? signColor(sum.net) : undefined} sub="active only" />
             </div>
-            {view === "chart" ? <BarChart key={`${k}-${kind}`} buckets={buckets} kind={kind} name={labels[k]} /> : <TableView buckets={buckets} kind={kind} />}
+
+            <div style={{ background: "#010409", border: "1px solid #161b22", borderRadius: 12, padding: "10px 8px 8px" }}>
+              {view === "chart" ? <BarChart key={`${k}-${kind}-${rangeCap}`} buckets={buckets} kind={kind} name={labels[k]} /> : <TableView buckets={buckets} kind={kind} />}
+            </div>
           </div>
         );
       })}
 
       {!active.length && (
-        <div style={{ border: "1px dashed #30363d", borderRadius: 12, padding: "22px 16px", textAlign: "center", color: MUTED, fontSize: 12, lineHeight: 1.6 }}>
+        <div style={{ border: "1px dashed #30363d", borderRadius: 14, padding: "26px 16px", textAlign: "center", color: MUTED, fontSize: 12, lineHeight: 1.6 }}>
           No closed trades yet. Charts appear as soon as a model's first trade closes.
         </div>
       )}
@@ -303,7 +331,7 @@ export default function ArenaCharts({ trades, labels }) {
         </div>
       )}
       <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 8, lineHeight: 1.6 }}>
-        Profit is realised and after fees. Days, weeks (Monday start) and months are counted in GMT+1. Tap a bar to see its figures.
+        Each bar adds up every trade closed in that {unit}. Profit is realised and after fees; periods are counted in GMT+1 (weeks start Monday). Tap a bar for its figures.
       </div>
     </div>
   );
