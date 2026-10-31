@@ -265,6 +265,9 @@ export default function ArenaCharts({ trades, labels }) {
                 <Stat label="WIN RATE" value={sum.rate == null ? "–" : `${sum.rate}%`} />
               </div>
             </div>
+            <div style={{ color: MUTED, fontFamily: MONO, fontSize: 9, margin: "-4px 0 8px" }}>
+              {sum.n} trades in {buckets.filter((b) => b.n).length} {kind === "day" ? "days" : kind === "week" ? "weeks" : "months"}; each bar adds up all trades closed in that {kind}
+            </div>
             {view === "chart" ? <BarChart key={`${k}-${kind}`} buckets={buckets} kind={kind} name={labels[k]} /> : <TableView buckets={buckets} kind={kind} />}
           </div>
         );
