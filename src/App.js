@@ -1558,12 +1558,13 @@ export default function FXAngel() {
 
         {/* ── SETTINGS TAB ── */}
         {activeTab === "settings" && (
-          <div className="fx-narrow">
+          <div>
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 14 }}>SETTINGS</div>
 
             {/* Trading settings: margin, leverage, SL/TP limits, models, hours (password protected) */}
             <ArenaSettings apiBase={API_BASE} onUnlockChange={setSettingsUnlocked} />
 
+            <div className="fx-masonry">
             {/* Backend status */}
             <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 }}>
               <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>🖥️ Backend Status</div>
@@ -1663,6 +1664,7 @@ export default function FXAngel() {
                   </div>
                 </div>
               ))}
+            </div>
             </div>
           </div>
         )}
@@ -1828,6 +1830,8 @@ export default function FXAngel() {
           .fx-chart-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); column-gap:14px; align-items:start; }
           .fx-eq { max-width:700px; margin:0 auto; }
           .fx-narrow { max-width:960px; }
+          .fx-masonry { column-count:2; column-gap:14px; }
+          .fx-masonry > * { break-inside:avoid; }
         }
       `}</style>
     </div>

@@ -297,6 +297,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
         </div>
       )}
 
+      <div className="fx-masonry">
       {/* per model */}
       {MODEL_ORDER.map((k) => {
         const m = data.models[k], f = form.models[k];
@@ -520,6 +521,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
             );
           })}
         </div>
+      </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
