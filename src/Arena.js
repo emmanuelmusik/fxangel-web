@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ArenaCharts from "./ArenaCharts";
 import PeakReach, { PeakBar } from "./PeakReach";
+import SlTpLab from "./SlTpLab";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -887,6 +888,9 @@ export default function Arena({ baselineTrades }) {
 
           <SectionTitle>HOW FAR TRADES RUN</SectionTitle>
           <PeakReach groups={peakGroups} />
+
+          <SectionTitle>SL / TP LAB</SectionTitle>
+          <SlTpLab labels={labels} colors={COLORS} />
         </>
       )}
 
