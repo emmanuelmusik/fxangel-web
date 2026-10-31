@@ -13,12 +13,18 @@ const AMBER = "#ffa502";
 
 const COLORS = {
   claude: "#e8a05a",
-  grok: "#c9d1d9",
+  grok: "#2dd4bf",
   gemini: "#6ea8ff",
   openai: "#b583ff",
   baseline: "#8b949e",
 };
 const colorOf = (k) => COLORS[k] || "#8b949e";
+// card look per account: soft colour wash, coloured edge, so each model is recognisable at a glance
+const tint = (k) => ({
+  background: `linear-gradient(135deg, ${colorOf(k)}24 0%, ${colorOf(k)}0d 38%, #0d1117 75%)`,
+  border: `1px solid ${colorOf(k)}40`,
+  borderLeft: `4px solid ${colorOf(k)}`,
+});
 const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
 const REFRESH_MS = 15000;
 
@@ -106,7 +112,7 @@ function ModelTag({ k, label }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
-      <span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{label}</span>
+      <span style={{ color: colorOf(k), fontSize: 12, fontWeight: 700 }}>{label}</span>
     </span>
   );
 }
@@ -368,7 +374,7 @@ function Leaderboard({ rows, openCounts, wallets }) {
         const isShadow = !((r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
         const off = (r.mode || "").toLowerCase().startsWith("off");
         return (
-          <Card key={r.account} style={{ borderLeft: `3px solid ${colorOf(r.account)}`, opacity: off ? 0.55 : 1 }}>
+          <Card key={r.account} style={{ ...tint(r.account), opacity: off ? 0.55 : 1 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 {!isShadow && <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 11 }}>#{i + 1}</span>}
@@ -526,7 +532,7 @@ function OpenPositions({ open }) {
   return (
     <div className="fx-cols" style={{ display: "grid", gap: 8 }}>
       {open.map((p) => (
-        <Card key={`${p.account}-${p.pair}`} style={{ borderLeft: `3px solid ${colorOf(p.account)}` }}>
+        <Card key={`${p.account}-${p.pair}`} style={{ ...tint(p.account) }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <ModelTag k={p.account} label={p.label} />
@@ -577,7 +583,7 @@ function Trades({ trades, reasons, filter }) {
           const open = openId === id;
           const why = t.decisionId ? reasons[t.decisionId] : null;
           return (
-            <Card key={id} onClick={() => setOpenId(open ? null : id)} style={{ padding: "11px 13px" }}>
+            <Card key={id} onClick={() => setOpenId(open ? null : id)} style={{ ...tint(t.account), padding: "11px 13px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(t.account), flexShrink: 0 }} />
@@ -648,7 +654,7 @@ function Decisions({ decisions, filter, labels }) {
             const open = openId === d.id;
             const col = d.action === "BUY" ? GREEN : d.action === "SELL" ? RED : "#8b949e";
             return (
-              <Card key={d.id} onClick={() => setOpenId(open ? null : d.id)} style={{ padding: "10px 13px" }}>
+              <Card key={d.id} onClick={() => setOpenId(open ? null : d.id)} style={{ ...tint(d.account), padding: "10px 13px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(d.account), flexShrink: 0 }} />
