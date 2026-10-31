@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ArenaCharts from "./ArenaCharts";
-import PeakReach from "./PeakReach";
+import PeakReach, { PeakBar } from "./PeakReach";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -597,11 +597,11 @@ function Trades({ trades, reasons, filter }) {
                 <span>{t.label} · {dayTime(t.closeTime)}</span>
                 <span>{t.reason || ""}</span>
               </div>
+              <PeakBar t={t} />
               {open && (
                 <div style={{ borderTop: "1px solid #21262d", marginTop: 10, paddingTop: 10, fontSize: 11, color: "#8b949e", lineHeight: 1.7 }}>
                   <div>{t.entryPrice != null ? `Entry ${price(t.entryPrice)} → exit ${price(t.closePrice)}` : `Exit ${price(t.closePrice)}`}</div>
                   {t.openTime && <div>Held {duration(t.openTime, t.closeTime)} (opened {dayTime(t.openTime)})</div>}
-                  {t.peakProfit != null && <div>Best unrealised profit during the trade: {money(num(t.peakProfit))}</div>}
                   {why ? (
                     <div style={{ color: "#cdd9e5", marginTop: 6 }}>
                       <span style={{ color: "#8b949e" }}>Why the model took it: </span>“{why.reason}”
@@ -739,12 +739,17 @@ export default function Arena({ baselineTrades }) {
     const models = (data.trades || []).map((t) => ({ ...t, pnl: num(t.pnl) }));
     const sinceMs = since ? new Date(since).getTime() : 0;
     // preferred: the baseline's trades as Binance reports them (fees included); fallback: the app's own log
+    const appLog = (baselineTrades || []).filter((t) => t.peakProfit != null);
+    const matchLog = (t) => appLog.find((x) => x.pair === t.pair && Math.abs(new Date(x.closeTime) - new Date(t.closeTime)) < 5 * 60000);
     const fromBinance = data.baseline
-      ? data.baseline.map((t) => ({
-          account: "baseline", label: "Baseline", pair: t.pair, direction: t.direction,
-          entryPrice: null, closePrice: t.closePrice, pnl: num(t.pnl), reason: t.reason,
-          openTime: null, closeTime: t.closeTime, peakProfit: null, decisionId: null,
-        }))
+      ? data.baseline.map((t) => {
+          const m = matchLog(t);
+          return {
+            account: "baseline", label: "Baseline", pair: t.pair, direction: t.direction,
+            entryPrice: m ? m.entry ?? m.entryPrice : null, closePrice: t.closePrice, pnl: num(t.pnl), reason: t.reason,
+            openTime: m?.openTime || null, closeTime: t.closeTime, peakProfit: m ? m.peakProfit : null, qty: m ? m.qty : null, decisionId: null,
+          };
+        })
       : null;
     const base = fromBinance || (baselineTrades || [])
       .filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs)
@@ -759,7 +764,8 @@ export default function Arena({ baselineTrades }) {
         reason: t.reason,
         openTime: t.openTime || null,
         closeTime: t.closeTime,
-        peakProfit: null,
+        peakProfit: t.peakProfit ?? null,
+        qty: t.qty ?? null,
         decisionId: null,
       }));
     return [...models, ...base].sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
