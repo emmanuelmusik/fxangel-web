@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import ArenaCharts from "./ArenaCharts";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -611,7 +612,7 @@ export default function Arena({ baselineTrades }) {
       get("/api/arena/status"),
       get("/api/arena/leaderboard"),
       get("/api/arena/open"),
-      get("/api/arena/trades?limit=500"),
+      get("/api/arena/trades?limit=1000"),
       get("/api/arena/decisions?limit=500"),
       get("/api/arena/balances"),
       get("/api/arena/baseline"),
@@ -722,6 +723,9 @@ export default function Arena({ baselineTrades }) {
 
       <SectionTitle>PROFIT OVER TIME</SectionTitle>
       <EquityChart series={series} start={since} />
+
+      <SectionTitle>DAILY · WEEKLY · MONTHLY</SectionTitle>
+      <ArenaCharts trades={trades} labels={labels} />
 
       <SectionTitle right={<span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span>}>OPEN NOW</SectionTitle>
       <OpenPositions open={data.open} />
