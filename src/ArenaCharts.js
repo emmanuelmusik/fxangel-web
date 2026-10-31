@@ -304,8 +304,8 @@ export default function ArenaCharts({ trades, labels }) {
     <div>
       <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 14, padding: 10, marginBottom: 12 }}>
         <Segmented options={KINDS.map((k) => ({ label: k.label, value: k.id }))} value={kind} onChange={setKind} />
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginTop: 8 }}>
+          <div style={{ minWidth: 0, maxWidth: "100%", display: "flex" }}>
             <Segmented small scroll options={RANGES[kind].map((r) => ({ label: r.cap == null ? "All" : r.cap === "custom" ? "Custom" : r.label.replace(" days", "d").replace(" weeks", "w").replace(" months", "m"), value: r.cap }))}
               value={rangeCap} onChange={(v) => setRanges({ ...ranges, [kind]: v })} />
           </div>
@@ -314,13 +314,13 @@ export default function ArenaCharts({ trades, labels }) {
       </div>
 
       {isCustom && (
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "#0d1117", border: "1px solid #21262d", borderRadius: 14, padding: 10, margin: "-4px 0 12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, background: "#0d1117", border: "1px solid #21262d", borderRadius: 14, padding: 10, margin: "-4px 0 12px", boxSizing: "border-box" }}>
           {[["FROM", from, setFrom], ["TO", to, setTo]].map(([lab, val, set]) => (
-            <label key={lab} style={{ flex: 1, minWidth: 0 }}>
+            <label key={lab} style={{ display: "block", minWidth: 0 }}>
               <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, letterSpacing: 0.8, marginBottom: 4 }}>{lab}</div>
               <input type="date" value={val} max={todayStr} onChange={(e) => e.target.value && set(e.target.value)} style={{
-                width: "100%", boxSizing: "border-box", background: "#010409", border: "1px solid #30363d", borderRadius: 10,
-                color: "#fff", fontFamily: MONO, fontSize: 12, padding: "8px 10px", colorScheme: "dark",
+                display: "block", width: "100%", minWidth: 0, maxWidth: "100%", height: 40, boxSizing: "border-box", background: "#010409", border: "1px solid #30363d", borderRadius: 10,
+                color: "#fff", fontFamily: MONO, fontSize: 13, padding: "0 10px", colorScheme: "dark", WebkitAppearance: "none", appearance: "none", margin: 0,
               }} />
             </label>
           ))}
