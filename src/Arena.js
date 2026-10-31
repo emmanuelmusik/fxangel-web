@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ArenaCharts from "./ArenaCharts";
+import PeakReach from "./PeakReach";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -781,6 +782,22 @@ export default function Arena({ baselineTrades }) {
       .sort((a, b) => ORDER.indexOf(a.account) - ORDER.indexOf(b.account));
   }, [trades, lb, since]);
 
+  // for the "how far trades run" table: models from the arena log, baseline from the app's own log
+  const peakGroups = useMemo(() => {
+    const sinceMs = since ? new Date(since).getTime() : 0;
+    const groups = (lb?.rows || [])
+      .filter((r) => (r.mode || "").toLowerCase().startsWith("live") && r.account !== "baseline")
+      .map((r) => ({
+        key: r.account, label: r.label, color: colorOf(r.account),
+        rows: (data.trades || []).filter((t) => t.account === r.account),
+      }));
+    groups.push({
+      key: "baseline", label: "Baseline", color: colorOf("baseline"),
+      rows: (baselineTrades || []).filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs),
+    });
+    return groups.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
+  }, [lb, data.trades, baselineTrades, since]);
+
   const reasons = useMemo(() => Object.fromEntries((data.decisions || []).map((d) => [d.id, d])), [data.decisions]);
   const labels = useMemo(() => {
     const m = {};
@@ -861,6 +878,9 @@ export default function Arena({ baselineTrades }) {
 
           <SectionTitle>DAILY · WEEKLY · MONTHLY</SectionTitle>
           <ArenaCharts trades={trades} labels={labels} />
+
+          <SectionTitle>HOW FAR TRADES RUN</SectionTitle>
+          <PeakReach groups={peakGroups} />
         </>
       )}
 

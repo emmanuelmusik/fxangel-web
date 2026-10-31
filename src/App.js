@@ -2,6 +2,7 @@ import React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Arena from "./Arena";
 import ArenaSettings from "./ArenaSettings";
+import PeakReach from "./PeakReach";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // Backend URL — deployed on Railway
@@ -506,6 +507,8 @@ export default function FXAngel() {
   const [accurate, setAccurate] = useState(null); // { baseline: [...], models: [...] } straight from Binance / the arena
   const [peaksSlOnly, setPeaksSlOnly] = useState(false);
   const [peaksSort, setPeaksSort] = useState("newest"); // newest | giveback | peak
+  const [peaksSource, setPeaksSource] = useState("all"); // all | baseline | claude | grok | gemini | openai
+  const [peaksArena, setPeaksArena] = useState(null);    // closed trades of the model accounts
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
@@ -703,6 +706,18 @@ export default function FXAngel() {
   ];
   const barIds = ["arena", "signals", "history", "settings"];
   const goTab = (id) => { setActiveTab(id); setMenuOpen(false); window.scrollTo(0, 0); };
+
+  useEffect(() => {
+    if (activeTab !== "peaks") return undefined;
+    let alive = true;
+    const load = async () => {
+      const d = await apiFetch("/api/arena/trades?limit=1000");
+      if (alive && Array.isArray(d)) setPeaksArena(d);
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [activeTab]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -1161,8 +1176,21 @@ export default function FXAngel() {
             </div>
 
             {(() => {
-              const allTrades = tradeHistory?.trades || [];
+              const PEAK_NAMES = { baseline: "Baseline", claude: "Claude", grok: "Grok", gemini: "Gemini", openai: "OpenAI" };
+              const PEAK_COLORS = { baseline: "#8b949e", claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff" };
+              const baselineRows = (tradeHistory?.trades || []).map(t => ({ ...t, who: "baseline" }));
+              // model trades are logged with entryPrice/qty/peakProfit; rebuild the same fields the baseline rows carry
+              const modelRows = (peaksArena || []).map(t => {
+                const entry = parseFloat(t.entryPrice), qty = parseFloat(t.qty), pk = parseFloat(t.peakProfit);
+                const peakPrice = entry > 0 && qty > 0 && Number.isFinite(pk) ? (t.direction === "BUY" ? entry + pk / qty : entry - pk / qty) : null;
+                return { ...t, who: t.account, entry, assetClass: "CRYPTO", peakPrice, pnl: (parseFloat(t.pnl) || 0).toFixed(2) };
+              });
+              const everyTrade = [...baselineRows, ...modelRows];
+              const allTrades = peaksSource === "all" ? everyTrade : everyTrade.filter(t => t.who === peaksSource);
               const cryptoTrades = allTrades.filter(t => t.assetClass === "CRYPTO");
+              const reachGroups = ["claude", "grok", "gemini", "openai", "baseline"]
+                .map(k => ({ key: k, label: PEAK_NAMES[k], color: PEAK_COLORS[k], rows: everyTrade.filter(t => t.who === k && t.assetClass === "CRYPTO") }))
+                .filter(g => g.rows.length);
               const withPeak = cryptoTrades.filter(t => t.peakProfit !== null && t.peakProfit !== undefined);
 
               const favorableDist = (entry, price, direction) =>
@@ -1218,8 +1246,19 @@ export default function FXAngel() {
                     </div>
                   </div>
 
+                  <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, margin: "0 2px 6px" }}>How far trades run (all teams)</div>
+                  <div style={{ marginBottom: 14 }}><PeakReach groups={reachGroups} /></div>
+
                   {/* Controls */}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                    <select value={peaksSource} onChange={e => setPeaksSource(e.target.value)} style={{
+                      flex: 1, padding: "8px 6px", background: "#0d1117",
+                      border: "1px solid #21262d", borderRadius: 10, color: "#8b949e",
+                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700,
+                    }}>
+                      <option value="all">All teams</option>
+                      {Object.entries(PEAK_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
                     <button onClick={() => setPeaksSlOnly(!peaksSlOnly)} style={{
                       flex: 1, padding: "8px 6px",
                       background: peaksSlOnly ? "#ff475720" : "#0d1117",
@@ -1244,7 +1283,7 @@ export default function FXAngel() {
                       flex: 1, padding: "8px 6px", background: "#ffa50215",
                       border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
                       fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>📄 Export {peaksSlOnly ? "SL Hits " : ""}PDF</button>
+                    }}>📄 Export baseline {peaksSlOnly ? "SL Hits " : ""}PDF</button>
                   </div>
 
                   {/* List */}
@@ -1271,6 +1310,7 @@ export default function FXAngel() {
                                   {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
                                 </span>
                                 <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
+                                <span style={{ color: PEAK_COLORS[t.who] || "#8b949e", fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700 }}>{PEAK_NAMES[t.who] || ""}</span>
                               </div>
                               <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
                                 {isProfit ? "+" : ""}{t.pnl}
