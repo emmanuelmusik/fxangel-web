@@ -259,6 +259,100 @@ function Wallet({ w }) {
   );
 }
 
+// ─── league table ─────────────────────────────────────────────────────────────
+// One row per live account, ranked by net profit, with a totals row. Built from the
+// same closed-trade list as everything else so the numbers always agree.
+function LeagueTable({ rows, trades }) {
+  const table = useMemo(() => {
+    const live = (rows || []).filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
+    const list = live.map((r) => {
+      const mine = trades.filter((t) => t.account === r.account).sort((a, b) => new Date(a.closeTime) - new Date(b.closeTime));
+      const wins = mine.filter((t) => t.pnl > 0), losses = mine.filter((t) => t.pnl <= 0);
+      const won = wins.reduce((s, t) => s + t.pnl, 0), lost = losses.reduce((s, t) => s + t.pnl, 0);
+      return {
+        account: r.account, label: (r.label || r.account).replace(" (rules engine)", ""),
+        p: mine.length, w: wins.length, l: losses.length,
+        pct: mine.length ? Math.round((wins.length / mine.length) * 100) : null,
+        won, lost, net: Math.round((won + lost) * 100) / 100,
+        best: mine.length ? Math.max(...mine.map((t) => t.pnl)) : null,
+        worst: mine.length ? Math.min(...mine.map((t) => t.pnl)) : null,
+        form: mine.slice(-5).map((t) => t.pnl > 0),
+      };
+    }).sort((a, b) => b.net - a.net || b.p - a.p);
+    const tot = list.reduce((a, r) => ({ p: a.p + r.p, w: a.w + r.w, l: a.l + r.l, won: a.won + r.won, lost: a.lost + r.lost, net: a.net + r.net }), { p: 0, w: 0, l: 0, won: 0, lost: 0, net: 0 });
+    tot.pct = tot.p ? Math.round((tot.w / tot.p) * 100) : null;
+    tot.best = list.reduce((m, r) => (r.best == null ? m : m == null ? r.best : Math.max(m, r.best)), null);
+    tot.worst = list.reduce((m, r) => (r.worst == null ? m : m == null ? r.worst : Math.min(m, r.worst)), null);
+    return { list, tot };
+  }, [rows, trades]);
+
+  if (!table.list.length) return <Empty>No live accounts yet.</Empty>;
+  const th = { color: "#8b949e", fontFamily: MONO, fontSize: 9, fontWeight: 400, textAlign: "right", padding: "8px 8px", whiteSpace: "nowrap", letterSpacing: 0.5 };
+  const td = { fontFamily: MONO, fontSize: 12, textAlign: "right", padding: "10px 8px", whiteSpace: "nowrap", color: "#cdd9e5" };
+  const stick = { position: "sticky", left: 0, background: "#0d1117", zIndex: 1 };
+  const m = (v) => (v == null ? "–" : money(v));
+
+  return (
+    <Card style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #21262d" }}>
+              <th style={{ ...th, ...stick, textAlign: "left", paddingLeft: 12 }}>#  TEAM</th>
+              <th style={th}>P</th><th style={th}>W</th><th style={th}>L</th><th style={th}>WIN %</th><th style={th}>NET</th>
+              <th style={th}>WON</th><th style={th}>LOST</th><th style={th}>BEST</th><th style={th}>WORST</th>
+              <th style={{ ...th, paddingRight: 12 }}>FORM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.list.map((r, i) => (
+              <tr key={r.account} style={{ borderBottom: "1px solid #161b22" }}>
+                <td style={{ ...td, ...stick, textAlign: "left", paddingLeft: 12 }}>
+                  <span style={{ color: "#8b949e", marginRight: 8, display: "inline-block", width: 14 }}>{i + 1}</span>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: colorOf(r.account), marginRight: 7 }} />
+                  <span style={{ color: "#fff", fontWeight: 700 }}>{r.label}</span>
+                </td>
+                <td style={td}>{r.p}</td>
+                <td style={{ ...td, color: r.w ? GREEN : "#484f58" }}>{r.w}</td>
+                <td style={{ ...td, color: r.l ? RED : "#484f58" }}>{r.l}</td>
+                <td style={td}>{r.pct == null ? "–" : `${r.pct}%`}</td>
+                <td style={{ ...td, color: pnlColor(r.net), fontWeight: 700 }}>{r.p ? money(r.net) : "–"}</td>
+                <td style={{ ...td, color: GREEN }}>{r.p ? money(r.won) : "–"}</td>
+                <td style={{ ...td, color: RED }}>{r.p ? money(r.lost) : "–"}</td>
+                <td style={td}>{m(r.best)}</td>
+                <td style={td}>{m(r.worst)}</td>
+                <td style={{ ...td, paddingRight: 12 }}>
+                  {r.form.length ? r.form.map((w, k) => (
+                    <span key={k} style={{ display: "inline-block", width: 7, height: 7, borderRadius: 4, marginLeft: 3, background: w ? GREEN : RED }} />
+                  )) : "–"}
+                </td>
+              </tr>
+            ))}
+            <tr style={{ background: "#161b22" }}>
+              <td style={{ ...td, ...stick, background: "#161b22", textAlign: "left", paddingLeft: 12, color: "#fff", fontWeight: 700 }}>
+                <span style={{ display: "inline-block", width: 22 }} />TOTAL
+              </td>
+              <td style={{ ...td, color: "#fff", fontWeight: 700 }}>{table.tot.p}</td>
+              <td style={{ ...td, color: GREEN, fontWeight: 700 }}>{table.tot.w}</td>
+              <td style={{ ...td, color: RED, fontWeight: 700 }}>{table.tot.l}</td>
+              <td style={{ ...td, color: "#fff", fontWeight: 700 }}>{table.tot.pct == null ? "–" : `${table.tot.pct}%`}</td>
+              <td style={{ ...td, color: pnlColor(table.tot.net), fontWeight: 700 }}>{table.tot.p ? money(table.tot.net) : "–"}</td>
+              <td style={{ ...td, color: GREEN, fontWeight: 700 }}>{table.tot.p ? money(table.tot.won) : "–"}</td>
+              <td style={{ ...td, color: RED, fontWeight: 700 }}>{table.tot.p ? money(table.tot.lost) : "–"}</td>
+              <td style={td}>{m(table.tot.best)}</td>
+              <td style={td}>{m(table.tot.worst)}</td>
+              <td style={{ ...td, paddingRight: 12 }}>–</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, padding: "8px 12px", lineHeight: 1.5 }}>
+        P played · W wins · L losses · WON/LOST gross profit and loss · FORM last 5 (green = win) · NET after fees. Ranked by NET. Total includes the baseline.
+      </div>
+    </Card>
+  );
+}
+
 function Leaderboard({ rows, openCounts, wallets }) {
   const sorted = useMemo(() => {
     const live = rows.filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
@@ -743,6 +837,9 @@ export default function Arena({ baselineTrades }) {
 
       {section === "overview" && (
         <>
+          <SectionTitle>LEAGUE TABLE</SectionTitle>
+          <LeagueTable rows={lb?.rows || []} trades={trades} />
+
           <SectionTitle>STANDINGS</SectionTitle>
           <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
 
