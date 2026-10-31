@@ -313,6 +313,7 @@ function Leaderboard({ rows, openCounts, wallets }) {
                   <div style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10, marginTop: 10 }}>
                     asked {r.decisions}× · BUY {r.buys} · SELL {r.sells} · SKIP {r.skips}
                     {r.apiErrors ? ` · ${r.apiErrors} errors` : ""}
+                    {r.tokensIn && r.decisions - (r.apiErrors || 0) > 0 ? ` · ~${Math.round(r.tokensIn / (r.decisions - (r.apiErrors || 0))).toLocaleString()} tokens in per answer` : ""}
                   </div>
                 )}
                 <Wallet w={wallets[r.account]} />
