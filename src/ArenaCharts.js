@@ -9,7 +9,7 @@ const MONO = "'Space Mono', monospace";
 const GREEN = "#00e5a0";
 const RED = "#ff4757";
 const MUTED = "#8b949e";
-const COLORS = { claude: "#e8a05a", grok: "#c9d1d9", gemini: "#6ea8ff", openai: "#b583ff", baseline: "#8b949e" };
+const COLORS = { claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff", baseline: "#8b949e" };
 const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
 
 const DAY = 86400000;
@@ -332,8 +332,8 @@ export default function ArenaCharts({ trades, labels }) {
         const { buckets, sum, best } = per[k];
         const days = buckets.filter((b) => b.n).length;
         return (
-          <div key={k} style={{ background: "linear-gradient(180deg,#0f141b 0%,#0b0f14 100%)", border: "1px solid #21262d", borderRadius: 16, padding: 14, marginBottom: 12, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: COLORS[k] }} />
+          <div key={k} style={{ background: `linear-gradient(135deg, ${COLORS[k]}24 0%, ${COLORS[k]}0d 38%, #0b0f14 75%)`, border: `1px solid ${COLORS[k]}40`, borderRadius: 16, padding: 14, marginBottom: 12, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: COLORS[k] }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
