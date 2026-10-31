@@ -22,7 +22,7 @@ const KINDS = [
 ];
 // how far back each view looks (cap = number of bars; null = everything)
 const RANGES = {
-  day: [{ label: "7 days", cap: 7 }, { label: "14 days", cap: 14 }, { label: "30 days", cap: 30 }, { label: "90 days", cap: 90 }, { label: "All", cap: null }],
+  day: [{ label: "7 days", cap: 7 }, { label: "30 days", cap: 30 }, { label: "Custom", cap: "custom" }],
   week: [{ label: "4 weeks", cap: 4 }, { label: "12 weeks", cap: 12 }, { label: "26 weeks", cap: 26 }, { label: "All", cap: null }],
   month: [{ label: "3 months", cap: 3 }, { label: "6 months", cap: 6 }, { label: "12 months", cap: 12 }, { label: "All", cap: null }],
 };
@@ -65,10 +65,23 @@ function longLabel(s, kind) {
 }
 
 // trades: [{ closeTime, pnl }]; returns one bucket per period, empty periods included
-export function buildBuckets(trades, kind, nowMs = Date.now(), capArg) {
+export function buildBuckets(trades, kind, nowMs = Date.now(), capArg, win) {
   const cap = capArg === undefined ? (KINDS.find((k) => k.id === kind) || KINDS[0]).cap : (capArg == null ? 3650 : capArg);
   const rows = (trades || []).filter((t) => t && Number.isFinite(new Date(t.closeTime).getTime()));
   if (!rows.length) return [];
+  if (win) {            // custom daily window, both ends in the GMT+1 day frame
+    const keepW = [];
+    for (let s0 = win.from; s0 <= win.to && keepW.length < 366; s0 += DAY) keepW.push(s0);
+    const mapW = new Map(keepW.map((s0) => [s0, { start: s0, net: 0, n: 0, w: 0, l: 0 }]));
+    for (const t of rows) {
+      const b = mapW.get(startOf(new Date(t.closeTime).getTime(), "day"));
+      if (!b) continue;
+      const p = Number(t.pnl) || 0;
+      b.net += p; b.n += 1;
+      if (Math.round(p * 100) > 0) b.w += 1; else if (Math.round(p * 100) < 0) b.l += 1;
+    }
+    return keepW.map((s0) => { const b = mapW.get(s0); return { ...b, net: +b.net.toFixed(2) }; });
+  }
   const firstMs = Math.min(...rows.map((t) => new Date(t.closeTime).getTime()));
   const last = startOf(nowMs, kind);
   let first = startOf(firstMs, kind);
@@ -253,13 +266,26 @@ export default function ArenaCharts({ trades, labels }) {
   const [view, setView] = useState("chart");
   const [ranges, setRanges] = useState(DEFAULT_RANGE);
   const rangeCap = ranges[kind];
+  const ymd = (ms) => new Date(ms + SHIFT).toISOString().slice(0, 10);
+  const todayStr = ymd(Date.now());
+  const [from, setFrom] = useState(() => ymd(Date.now() - 13 * DAY));
+  const [to, setTo] = useState(todayStr);
+  const isCustom = kind === "day" && rangeCap === "custom";
+  const win = useMemo(() => {
+    if (!isCustom || !from || !to) return null;
+    let a = Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10));
+    let b = Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10));
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    if (a > b) [a, b] = [b, a];
+    return { from: a, to: b };
+  }, [isCustom, from, to]);
 
   const accounts = useMemo(() => ORDER.filter((k) => labels && labels[k]), [labels]);
   const per = useMemo(() => {
     const out = {};
     for (const k of accounts) {
       const mine = (trades || []).filter((t) => t.account === k);
-      const buckets = buildBuckets(mine, kind, Date.now(), rangeCap);
+      const buckets = buildBuckets(mine, kind, Date.now(), isCustom ? undefined : rangeCap, win);
       const w = buckets.reduce((t, b) => t + b.w, 0), l = buckets.reduce((t, b) => t + b.l, 0);
       const best = buckets.reduce((m, b) => (b.n && (m == null || b.net > m.net) ? b : m), null);
       out[k] = {
@@ -268,7 +294,7 @@ export default function ArenaCharts({ trades, labels }) {
       };
     }
     return out;
-  }, [trades, accounts, kind, rangeCap]);
+  }, [trades, accounts, kind, rangeCap, isCustom, win]);
 
   const active = accounts.filter((k) => per[k].mine.length);
   const idle = accounts.filter((k) => !per[k].mine.length);
@@ -280,12 +306,26 @@ export default function ArenaCharts({ trades, labels }) {
         <Segmented options={KINDS.map((k) => ({ label: k.label, value: k.id }))} value={kind} onChange={setKind} />
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
           <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
-            <Segmented small scroll options={RANGES[kind].map((r) => ({ label: r.cap == null ? "All" : r.label.replace(" days", "d").replace(" weeks", "w").replace(" months", "m"), value: r.cap }))}
+            <Segmented small scroll options={RANGES[kind].map((r) => ({ label: r.cap == null ? "All" : r.cap === "custom" ? "Custom" : r.label.replace(" days", "d").replace(" weeks", "w").replace(" months", "m"), value: r.cap }))}
               value={rangeCap} onChange={(v) => setRanges({ ...ranges, [kind]: v })} />
           </div>
           <Segmented small options={[{ label: "▮▯▮ Chart", value: "chart" }, { label: "☰ Table", value: "table" }]} value={view} onChange={setView} />
         </div>
       </div>
+
+      {isCustom && (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "#0d1117", border: "1px solid #21262d", borderRadius: 14, padding: 10, margin: "-4px 0 12px" }}>
+          {[["FROM", from, setFrom], ["TO", to, setTo]].map(([lab, val, set]) => (
+            <label key={lab} style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, letterSpacing: 0.8, marginBottom: 4 }}>{lab}</div>
+              <input type="date" value={val} max={todayStr} onChange={(e) => e.target.value && set(e.target.value)} style={{
+                width: "100%", boxSizing: "border-box", background: "#010409", border: "1px solid #30363d", borderRadius: 10,
+                color: "#fff", fontFamily: MONO, fontSize: 12, padding: "8px 10px", colorScheme: "dark",
+              }} />
+            </label>
+          ))}
+        </div>
+      )}
 
       {active.map((k) => {
         const { buckets, sum, best } = per[k];
