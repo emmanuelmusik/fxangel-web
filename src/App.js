@@ -520,6 +520,7 @@ export default function FXAngel() {
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramChat, setTelegramChat] = useState("");
   const [telegramStatus, setTelegramStatus] = useState(null);
+  const [settingsUnlocked, setSettingsUnlocked] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const prevSignalCount = useRef(0);
 
@@ -873,14 +874,16 @@ export default function FXAngel() {
               </div>
             )}
 
-            {signals.map(signal => (
-              <SignalCard
-                key={signal.id}
-                signal={signal}
-                expanded={expandedSignal === signal.id}
-                onToggle={() => setExpandedSignal(expandedSignal === signal.id ? null : signal.id)}
-              />
-            ))}
+            <div className="fx-cols" style={{ display: "grid", gap: "0 12px" }}>
+              {signals.map(signal => (
+                <SignalCard
+                  key={signal.id}
+                  signal={signal}
+                  expanded={expandedSignal === signal.id}
+                  onToggle={() => setExpandedSignal(expandedSignal === signal.id ? null : signal.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -1103,7 +1106,7 @@ export default function FXAngel() {
                       {connected || accurate ? `No ${historyFilter === "ALL" ? "" : historyFilter + " "}trades recorded yet` : "Backend offline"}
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="fx-cols" style={{ display: "grid", gap: 8 }}>
                       {filtered.map((t, i) => {
                         const isProfit = parseFloat(t.pnl) >= 0;
                         const isFX = t.assetClass === "FX";
@@ -1252,7 +1255,7 @@ export default function FXAngel() {
                         : "No trades match this filter"}
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="fx-cols" style={{ display: "grid", gap: 8 }}>
                       {rows.map((t, i) => {
                         const bar = computeBar(t);
                         const isProfit = parseFloat(t.pnl) >= 0;
@@ -1330,7 +1333,7 @@ export default function FXAngel() {
 
         {/* ── NEWS TAB ── */}
         {activeTab === "news" && (
-          <div>
+          <div className="fx-narrow">
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 4 }}>ECONOMIC CALENDAR</div>
             <div style={{ color: "#8b949e", fontSize: 10, marginBottom: 14, fontFamily: "'Space Mono', monospace" }}>
               {getLocalDateString()}
@@ -1363,7 +1366,7 @@ export default function FXAngel() {
 
         {/* ── AI ANALYSIS TAB ── */}
         {activeTab === "analysis" && (
-          <div>
+          <div className="fx-narrow">
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 14 }}>AI TECHNICAL ANALYSIS</div>
 
             <div style={{ marginBottom: 14 }}>
@@ -1555,11 +1558,11 @@ export default function FXAngel() {
 
         {/* ── SETTINGS TAB ── */}
         {activeTab === "settings" && (
-          <div>
+          <div className="fx-narrow">
             <div style={{ color: "#fff", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: 2, marginBottom: 14 }}>SETTINGS</div>
 
             {/* Trading settings: margin, leverage, SL/TP limits, models, hours (password protected) */}
-            <ArenaSettings apiBase={API_BASE} />
+            <ArenaSettings apiBase={API_BASE} onUnlockChange={setSettingsUnlocked} />
 
             {/* Backend status */}
             <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -1585,8 +1588,8 @@ export default function FXAngel() {
               )}
             </div>
 
-            {/* Telegram */}
-            <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+            {/* Telegram (only visible once the settings are unlocked) */}
+            {settingsUnlocked && <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>📱 Telegram Notifications</div>
                 {telegramStatus && (
@@ -1638,7 +1641,7 @@ export default function FXAngel() {
                   <div key={i} style={{ color: "#8b949e", fontSize: 10, lineHeight: 1.8 }}>{step}</div>
                 ))}
               </div>
-            </div>
+            </div>}
 
             {/* Risk settings */}
             <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 14 }}>
@@ -1824,6 +1827,7 @@ export default function FXAngel() {
           .fx-cols { grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); align-items:start; }
           .fx-chart-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); column-gap:14px; align-items:start; }
           .fx-eq { max-width:700px; margin:0 auto; }
+          .fx-narrow { max-width:960px; }
         }
       `}</style>
     </div>
