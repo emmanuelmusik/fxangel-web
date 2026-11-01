@@ -3,6 +3,7 @@ import ArenaCharts from "./ArenaCharts";
 import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
 import CloseAll from "./CloseAll";
+import FableReview from "./FableReview";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -892,6 +893,9 @@ export default function Arena({ baselineTrades }) {
 
           <SectionTitle>SL / TP LAB</SectionTitle>
           <SlTpLab labels={labels} colors={COLORS} />
+
+          <SectionTitle>FABLE SECOND OPINION</SectionTitle>
+          <FableReview />
         </>
       )}
 
