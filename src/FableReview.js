@@ -48,15 +48,17 @@ export default function FableReview() {
   return (
     <div style={card}>
       <div style={{ color: "#cdd9e5", fontSize: 12, lineHeight: 1.6 }}>
-        Fable reads every baseline signal and says AGREE or DISAGREE. It never blocks a trade; this only records
-        what would have happened if the baseline had skipped the trades Fable disagreed with.
+        {data.gateOn
+          ? "Live. Every baseline signal goes to Fable with the market data. Fable decides BUY, SELL or SKIP and picks its own stop and target. If it trades, the order goes on the Claude sub-account. The baseline's own order on the main account is not touched, so you can compare."
+          : "Shadow mode: Fable reads every baseline signal and says AGREE or DISAGREE. Nothing is traded; this only records what would have happened if the baseline had skipped the trades Fable disagreed with."}
       </div>
       {!data.enabled && (
         <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>Switched off (FABLE_REVIEW_ENABLED=false, or no ANTHROPIC_API_KEY).</div>
       )}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14 }}>
-        <Stat label="FABLE AGREED" big={money(s.agree.net)} color={tone(s.agree.net)} sub={`${s.agree.n} trades${s.agree.winRate != null ? ` · ${s.agree.winRate}% won` : ""}`} />
-        <Stat label="FABLE DISAGREED" big={money(s.disagree.net)} color={tone(s.disagree.net)} sub={`${s.disagree.n} trades${s.disagree.winRate != null ? ` · ${s.disagree.winRate}% won` : ""}`} />
+        <Stat label="FABLE SAID YES" big={money(s.agree.net)} color={tone(s.agree.net)} sub={`${s.agree.n} trades${s.agree.winRate != null ? ` · ${s.agree.winRate}% won` : ""}`} />
+        <Stat label="FABLE SAID NO / FLIPPED" big={money(s.disagree.net)} color={tone(s.disagree.net)} sub={`${s.disagree.n} trades${s.disagree.winRate != null ? ` · ${s.disagree.winRate}% won` : ""}`} />
+        {s.own && s.own.n > 0 && <Stat label="FABLE'S OWN TRADES" big={money(s.own.net)} color={tone(s.own.net)} sub={`${s.own.n} closed${s.own.winRate != null ? ` · ${s.own.winRate}% won` : ""}${s.own.open ? ` · ${s.own.open} open` : ""}`} />}
         <Stat label="SPENT" big={`$${s.spent.toFixed(2)}`} sub={`${s.reviews} reviews · ${data.callsToday}/${data.dailyCap} today`} />
       </div>
       {s.scored > 0 && (
@@ -72,10 +74,14 @@ export default function FableReview() {
           <div key={r.id} style={{ borderTop: "1px solid #21262d", padding: "8px 0" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontFamily: MONO, fontSize: 10 }}>
               <span style={{ color: "#fff", fontWeight: 700 }}>{r.direction} {r.pair}</span>
-              <span style={{ color: r.verdict === "AGREE" ? GREEN : r.verdict === "DISAGREE" ? RED : MUTED }}>{r.verdict || (r.skippedCap ? "daily cap" : "no answer")}{r.verdict ? ` ${r.confidence}%` : ""}</span>
+              <span style={{ color: r.verdict === "AGREE" ? GREEN : r.verdict === "DISAGREE" ? RED : r.verdict === "FLIP" ? AMBER : MUTED }}>{r.verdict === "FLIP" ? `FLIPPED → ${r.fableAction}` : r.verdict === "DISAGREE" && r.gate ? "SKIP" : r.verdict || (r.skippedCap ? "daily cap" : r.skippedBusy ? "busy" : "no answer")}{r.verdict && r.confidence ? ` ${r.confidence}%` : ""}</span>
+              {r.slPct != null && <span style={{ color: MUTED }}>SL {r.slPct}% · TP {r.tpPct}%</span>}
+              {r.gate && r.note && !r.executed && r.fableAction && r.fableAction !== "SKIP" && <span style={{ color: AMBER }}>not opened</span>}
               <span style={{ color: MUTED }}>{new Date(r.ts).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-              {r.pnl != null && <span style={{ color: tone(r.pnl), marginLeft: "auto" }}>{money(r.pnl)}</span>}
-              {r.pnl == null && r.traded && <span style={{ color: MUTED, marginLeft: "auto" }}>open</span>}
+              {r.fablePnl != null
+                ? <span style={{ color: tone(r.fablePnl), marginLeft: "auto" }}>Fable {money(r.fablePnl)}</span>
+                : r.executed ? <span style={{ color: MUTED, marginLeft: "auto" }}>Fable open</span>
+                : r.pnl != null && <span style={{ color: tone(r.pnl), marginLeft: "auto" }}>baseline {money(r.pnl)}</span>}
             </div>
             {r.reason && <div style={{ color: MUTED, fontSize: 11, marginTop: 3, lineHeight: 1.5 }}>{r.reason}</div>}
           </div>
