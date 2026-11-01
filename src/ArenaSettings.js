@@ -57,7 +57,7 @@ function toForm(d) {
     const m = d.models[k];
     if (!m) continue;
     models[k] = {
-      enabled: !!m.enabled, modelId: m.modelId || "",
+      enabled: !!m.enabled, modelId: m.modelId || "", pairs: [...(m.pairs || [])],
       marginUsd: String(m.marginUsd), leverage: String(m.leverage),
       slMinPct: String(m.slMinPct), slMaxPct: String(m.slMaxPct),
       tpMinPct: String(m.tpMinPct), tpMaxPct: String(m.tpMaxPct),
@@ -203,6 +203,11 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
         const n = parseFloat(f[name]);
         if (n !== cur[name]) p[name] = Number.isFinite(n) ? n : f[name];
       }
+      const curP = [...(cur.pairs || [])].sort().join(","), selP = [...f.pairs].sort().join(",");
+      if (curP !== selP) {
+        const globP = [...data.global.arenaPairs].sort().join(",");
+        p.pairs = selP === globP ? null : f.pairs;      // same as the global list = follow it again
+      }
       if (Object.keys(p).length) patch.models[k] = p;
     }
     const g = data.global;
@@ -243,7 +248,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
 
   const resetModel = (k) => {
     if (!window.confirm(`Reset ${data.models[k].label} to its default settings?`)) return;
-    save({ models: { [k]: { enabled: null, modelId: null, marginUsd: null, leverage: null, slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null } }, global: {} });
+    save({ models: { [k]: { enabled: null, modelId: null, marginUsd: null, leverage: null, slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null, pairs: null } }, global: {} });
   };
 
   const resetBase = (sym) => {
@@ -326,6 +331,28 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
               onChange={(e) => setModel(k, "modelId", e.target.value)}
             />
             <datalist id={listId}>{(MODEL_SUGGESTIONS[m.provider] || []).map((s) => <option key={s} value={s} />)}</datalist>
+
+            <div style={label}>COINS {m.label.toUpperCase()} TRADES</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+              {data.allowedPairs.map((p) => {
+                const on = f.pairs.includes(p);
+                return (
+                  <button key={p} onClick={() => setModel(k, "pairs", on ? f.pairs.filter((x) => x !== p) : [...f.pairs, p])}
+                    style={{
+                      padding: "6px 9px", borderRadius: 10, cursor: "pointer", fontFamily: MONO, fontSize: 10, fontWeight: 700,
+                      background: on ? `${c}20` : "#010409", border: `1px solid ${on ? c : "#21262d"}`, color: on ? c : "#8b949e",
+                    }}>{p.replace("/USD", "")}</button>
+                );
+              })}
+            </div>
+            <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginBottom: 10, lineHeight: 1.5 }}>
+              {[...f.pairs].sort().join(",") === [...form.pairs].sort().join(",")
+                ? "Same as the global list below."
+                : <>Own list.{" "}
+                    <span role="button" style={{ color: c, cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => setModel(k, "pairs", [...form.pairs])}>Use the global list</span></>}
+              {" "}Fewer coins means fewer calls.
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {NUM_FIELDS.map(([name, text]) => {
@@ -505,7 +532,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
 
       {/* pairs */}
       <div style={card}>
-        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>🪙 Pairs the models trade</div>
+        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>🪙 Default pairs (models without their own list)</div>
         <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, marginBottom: 10 }}>
           Fewer pairs means fewer model calls (lower cost).
         </div>
