@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ArenaCharts from "./ArenaCharts";
+import ArenaCharts, { startOf, nextStart, prevStart, longLabel, SHIFT } from "./ArenaCharts";
 import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
 import CloseAll from "./CloseAll";
@@ -272,11 +272,30 @@ function Wallet({ w }) {
 // ─── league table ─────────────────────────────────────────────────────────────
 // One row per live account, ranked by net profit, with a totals row. Built from the
 // same closed-trade list as everything else so the numbers always agree.
+const RANGES = [
+  { id: "all", label: "All time" },
+  { id: "day", label: "Daily" },
+  { id: "week", label: "Weekly" },
+  { id: "month", label: "Monthly" },
+];
+
 function LeagueTable({ rows, trades }) {
+  // same periods as the charts, counted in GMT+1: pick one, then step back and forward through it
+  const [kind, setKind] = useState("all");
+  const [cursor, setCursor] = useState(null);                // start of the shown period; null = the current one
+  const nowStart = kind === "all" ? null : startOf(Date.now(), kind);
+  const from = kind === "all" ? null : (cursor != null ? cursor : nowStart);
+  const to = from == null ? null : nextStart(from, kind);
+  const atNow = kind === "all" || from === nowStart;
+  const inRange = useMemo(() => {
+    if (from == null) return trades;
+    return trades.filter((t) => { const ms = new Date(t.closeTime).getTime() + SHIFT; return ms >= from && ms < to; });
+  }, [trades, from, to]);
+
   const table = useMemo(() => {
     const live = (rows || []).filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
     const list = live.map((r) => {
-      const mine = trades.filter((t) => t.account === r.account).sort((a, b) => new Date(a.closeTime) - new Date(b.closeTime));
+      const mine = inRange.filter((t) => t.account === r.account).sort((a, b) => new Date(a.closeTime) - new Date(b.closeTime));
       const wins = mine.filter((t) => t.pnl > 0), losses = mine.filter((t) => t.pnl <= 0);
       const won = wins.reduce((s, t) => s + t.pnl, 0), lost = losses.reduce((s, t) => s + t.pnl, 0);
       return {
@@ -294,7 +313,7 @@ function LeagueTable({ rows, trades }) {
     tot.best = list.reduce((m, r) => (r.best == null ? m : m == null ? r.best : Math.max(m, r.best)), null);
     tot.worst = list.reduce((m, r) => (r.worst == null ? m : m == null ? r.worst : Math.min(m, r.worst)), null);
     return { list, tot };
-  }, [rows, trades]);
+  }, [rows, inRange]);
 
   if (!table.list.length) return <Empty>No live accounts yet.</Empty>;
   const th = { color: "#8b949e", fontFamily: MONO, fontSize: 9, fontWeight: 400, textAlign: "right", padding: "8px 8px", whiteSpace: "nowrap", letterSpacing: 0.5 };
@@ -302,7 +321,22 @@ function LeagueTable({ rows, trades }) {
   const stick = { position: "sticky", left: 0, background: "#0d1117", zIndex: 1 };
   const m = (v) => (v == null ? "–" : money(v));
 
+  const stepBtn = (disabled) => ({
+    background: "transparent", border: "1px solid #30363d", borderRadius: 8, color: disabled ? "#30363d" : "#cdd9e5",
+    cursor: disabled ? "default" : "pointer", fontFamily: MONO, fontSize: 14, width: 32, height: 28, padding: 0,
+  });
   return (
+    <>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+      <Chips options={RANGES} value={kind} onChange={(k) => { setKind(k); setCursor(null); }} />
+      {kind !== "all" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button aria-label="Earlier" style={stepBtn(false)} onClick={() => setCursor(prevStart(from, kind))}>‹</button>
+          <span style={{ color: "#cdd9e5", fontFamily: MONO, fontSize: 11, minWidth: 110, textAlign: "center" }}>{longLabel(from, kind)}</span>
+          <button aria-label="Later" disabled={atNow} style={stepBtn(atNow)} onClick={() => { const n = nextStart(from, kind); setCursor(n >= nowStart ? null : n); }}>›</button>
+        </div>
+      )}
+    </div>
     <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
@@ -360,6 +394,7 @@ function LeagueTable({ rows, trades }) {
         P played · W wins · L losses · WON/LOST gross profit and loss · FORM last 5 (green = win) · NET after fees. Ranked by NET. Total includes the baseline.
       </div>
     </Card>
+    </>
   );
 }
 

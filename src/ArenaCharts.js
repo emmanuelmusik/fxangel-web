@@ -13,7 +13,7 @@ const COLORS = { claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: 
 const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
 
 const DAY = 86400000;
-const SHIFT = 3600000; // GMT+1
+export const SHIFT = 3600000; // GMT+1
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const KINDS = [
   { id: "day", label: "Daily", cap: 30 },
@@ -37,18 +37,18 @@ const money = (n, digits = 2) => {
 const signColor = (n) => (Math.round(n * 100) > 0 ? GREEN : Math.round(n * 100) < 0 ? RED : MUTED);
 
 // ─── period maths (all in the GMT+1 frame, held as UTC-midnight milliseconds) ─
-function startOf(ms, kind) {
+export function startOf(ms, kind) {
   const d = new Date(ms + SHIFT);
   let s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   if (kind === "week") s -= ((d.getUTCDay() + 6) % 7) * DAY;          // weeks start on Monday
   if (kind === "month") s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
   return s;
 }
-function nextStart(s, kind) {
+export function nextStart(s, kind) {
   if (kind === "month") { const d = new Date(s); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); }
   return s + (kind === "week" ? 7 : 1) * DAY;
 }
-function prevStart(s, kind) {
+export function prevStart(s, kind) {
   if (kind === "month") { const d = new Date(s); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1); }
   return s - (kind === "week" ? 7 : 1) * DAY;
 }
@@ -57,7 +57,7 @@ function shortLabel(s, kind) {
   if (kind === "month") return `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`;
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 }
-function longLabel(s, kind) {
+export function longLabel(s, kind) {
   const d = new Date(s);
   if (kind === "month") return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   if (kind === "week") return `Week of ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
