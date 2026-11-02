@@ -279,19 +279,39 @@ const RANGES = [
   { id: "month", label: "Monthly" },
 ];
 
-function LeagueTable({ rows, trades }) {
-  // same periods as the charts, counted in GMT+1: pick one, then step back and forward through it
-  const [kind, setKind] = useState("all");
-  const [cursor, setCursor] = useState(null);                // start of the shown period; null = the current one
+// One date range for the whole Overview, Trades and Decisions screens (same periods as the charts, GMT+1)
+function RangeBar({ range, setRange }) {
+  const { kind, cursor } = range;
   const nowStart = kind === "all" ? null : startOf(Date.now(), kind);
   const from = kind === "all" ? null : (cursor != null ? cursor : nowStart);
-  const to = from == null ? null : nextStart(from, kind);
   const atNow = kind === "all" || from === nowStart;
-  const inRange = useMemo(() => {
-    if (from == null) return trades;
-    return trades.filter((t) => { const ms = new Date(t.closeTime).getTime() + SHIFT; return ms >= from && ms < to; });
-  }, [trades, from, to]);
+  const stepBtn = (disabled) => ({
+    background: "transparent", border: "1px solid #30363d", borderRadius: 8, color: disabled ? "#30363d" : "#cdd9e5",
+    cursor: disabled ? "default" : "pointer", fontFamily: MONO, fontSize: 14, width: 32, height: 28, padding: 0,
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <Chips options={RANGES} value={kind} onChange={(k) => setRange({ kind: k, cursor: null })} />
+      {kind !== "all" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button aria-label="Earlier" style={stepBtn(false)} onClick={() => setRange({ kind, cursor: prevStart(from, kind) })}>‹</button>
+          <span style={{ color: "#cdd9e5", fontFamily: MONO, fontSize: 11, minWidth: 110, textAlign: "center" }}>{longLabel(from, kind)}</span>
+          <button aria-label="Later" disabled={atNow} style={stepBtn(atNow)} onClick={() => { const n = nextStart(from, kind); setRange({ kind, cursor: n >= nowStart ? null : n }); }}>›</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
+// real-time bounds (ms) of the chosen period, or null for all time
+function rangeBounds(range) {
+  if (range.kind === "all") return null;
+  const from = range.cursor != null ? range.cursor : startOf(Date.now(), range.kind);
+  return { from: from - SHIFT, to: nextStart(from, range.kind) - SHIFT };
+}
+
+function LeagueTable({ rows, trades }) {
+  const inRange = trades;
   const table = useMemo(() => {
     const live = (rows || []).filter((r) => (r.mode || "").toLowerCase().startsWith("live") || r.account === "baseline");
     const list = live.map((r) => {
@@ -321,22 +341,8 @@ function LeagueTable({ rows, trades }) {
   const stick = { position: "sticky", left: 0, background: "#0d1117", zIndex: 1 };
   const m = (v) => (v == null ? "–" : money(v));
 
-  const stepBtn = (disabled) => ({
-    background: "transparent", border: "1px solid #30363d", borderRadius: 8, color: disabled ? "#30363d" : "#cdd9e5",
-    cursor: disabled ? "default" : "pointer", fontFamily: MONO, fontSize: 14, width: 32, height: 28, padding: 0,
-  });
   return (
     <>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-      <Chips options={RANGES} value={kind} onChange={(k) => { setKind(k); setCursor(null); }} />
-      {kind !== "all" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button aria-label="Earlier" style={stepBtn(false)} onClick={() => setCursor(prevStart(from, kind))}>‹</button>
-          <span style={{ color: "#cdd9e5", fontFamily: MONO, fontSize: 11, minWidth: 110, textAlign: "center" }}>{longLabel(from, kind)}</span>
-          <button aria-label="Later" disabled={atNow} style={stepBtn(atNow)} onClick={() => { const n = nextStart(from, kind); setCursor(n >= nowStart ? null : n); }}>›</button>
-        </div>
-      )}
-    </div>
     <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
@@ -748,6 +754,8 @@ export default function Arena({ baselineTrades }) {
   const [section, setSection] = useState(() => { try { return sessionStorage.getItem("arenaSection") || "overview"; } catch { return "overview"; } });
   const pickSection = (id) => { setSection(id); try { sessionStorage.setItem("arenaSection", id); } catch {} };
   const [updated, setUpdated] = useState(null);
+  const [range, setRange] = useState({ kind: "all", cursor: null });
+  const [lbPeriod, setLbPeriod] = useState(null);
 
   const load = useCallback(async () => {
     const [status, lb, open, trades, decisions, balances, baseline] = await Promise.all([
@@ -768,6 +776,20 @@ export default function Arena({ baselineTrades }) {
     const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  const bounds = rangeBounds(range);
+  const bFrom = bounds ? bounds.from : null, bTo = bounds ? bounds.to : null;
+  useEffect(() => {                                   // the Standings cards need the backend's numbers for exactly this period
+    if (bFrom == null) { setLbPeriod(null); return undefined; }
+    let alive = true;
+    const pull = async () => {
+      const r = await get(`/api/arena/leaderboard?since=${new Date(bFrom).toISOString()}&until=${new Date(bTo).toISOString()}`);
+      if (alive && r) setLbPeriod({ key: `${bFrom}`, ...r });
+    };
+    pull();
+    const id = setInterval(pull, REFRESH_MS);
+    return () => { alive = false; clearInterval(id); };
+  }, [bFrom, bTo]);
 
   const { status, lb } = data;
   const since = lb?.since || status?.arenaStart || null;
@@ -808,6 +830,11 @@ export default function Arena({ baselineTrades }) {
       }));
     return [...models, ...base].sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
   }, [data.trades, data.baseline, baselineTrades, since]);
+
+  // everything below the range bar follows the chosen period
+  const rangeTrades = useMemo(() => (bFrom == null ? trades : trades.filter((t) => { const ms = new Date(t.closeTime).getTime(); return ms >= bFrom && ms < bTo; })), [trades, bFrom, bTo]);
+  const rangeDecisions = useMemo(() => (bFrom == null ? (data.decisions || []) : (data.decisions || []).filter((d) => { const ms = new Date(d.ts).getTime(); return ms >= bFrom && ms < bTo; })), [data.decisions, bFrom, bTo]);
+  const standingsRows = bFrom == null ? (lb?.rows || []) : (lbPeriod && lbPeriod.key === `${bFrom}` ? lbPeriod.rows : null);
 
   // one cumulative-PnL line per account
   const series = useMemo(() => {
@@ -905,10 +932,11 @@ export default function Arena({ baselineTrades }) {
       {section === "overview" && (
         <>
           <SectionTitle>LEAGUE TABLE</SectionTitle>
-          <LeagueTable rows={lb?.rows || []} trades={trades} />
+          <RangeBar range={range} setRange={setRange} />
+          <LeagueTable rows={lb?.rows || []} trades={rangeTrades} />
 
           <SectionTitle>STANDINGS</SectionTitle>
-          <Leaderboard rows={lb?.rows || []} openCounts={openCounts} wallets={wallets} />
+          {standingsRows ? <Leaderboard rows={standingsRows} openCounts={openCounts} wallets={wallets} /> : <Empty>Loading this period…</Empty>}
 
           <SectionTitle right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{data.open.length} open</span><CloseAll open={data.open} onDone={load} /></span>}>OPEN NOW</SectionTitle>
           <OpenPositions open={data.open} />
@@ -937,18 +965,20 @@ export default function Arena({ baselineTrades }) {
       {section === "trades" && (
         <>
           <SectionTitle>TRADES</SectionTitle>
+          <RangeBar range={range} setRange={setRange} />
           <Chips options={filterOptions} value={filter} onChange={setFilter} />
           <div style={{ height: 10 }} />
-          <Trades trades={trades} reasons={reasons} filter={filter} />
+          <Trades trades={rangeTrades} reasons={reasons} filter={filter} />
         </>
       )}
 
       {section === "decisions" && (
         <>
           <SectionTitle>MODEL DECISIONS</SectionTitle>
+          <RangeBar range={range} setRange={setRange} />
           <Chips options={filterOptions} value={filter} onChange={setFilter} />
           <div style={{ height: 10 }} />
-          <Decisions decisions={data.decisions || []} filter={filter} labels={labels} />
+          <Decisions decisions={rangeDecisions} filter={filter} labels={labels} />
         </>
       )}
     </div>
