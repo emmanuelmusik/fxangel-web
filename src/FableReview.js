@@ -49,7 +49,7 @@ export default function FableReview() {
     <div style={card}>
       <div style={{ color: "#cdd9e5", fontSize: 12, lineHeight: 1.6 }}>
         {data.gateOn
-          ? "Live. Every baseline signal goes to Fable with the market data. Fable decides BUY, SELL or SKIP and picks its own stop and target. If it trades, the order goes on the Claude sub-account. The baseline's own order on the main account is not touched, so you can compare."
+          ? "Live. Every baseline signal goes to Fable with the market data. Fable decides BUY, SELL or SKIP and picks its own stop and target. If it trades, the order goes on Michael's (the Claude) sub-account. The Sentinel's (baseline's) own order on the main account is not touched, so you can compare."
           : "Shadow mode: Fable reads every baseline signal and says AGREE or DISAGREE. Nothing is traded; this only records what would have happened if the baseline had skipped the trades Fable disagreed with."}
       </div>
       {!data.enabled && (

@@ -911,7 +911,7 @@ export default function FXAngel() {
             {(() => {
               // Accurate sources: baseline from Binance (fees included) replaces the bot's own crypto log
               // for the last 180 days; AI model trades come from the arena. FX stays as logged.
-              const MODEL_NAMES = { baseline: "Baseline", claude: "Claude", grok: "Grok", gemini: "Gemini", openai: "OpenAI" };
+              const MODEL_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel" };
               const logged = (tradeHistory?.trades || []).map(t => ({ ...t, model: "baseline" }));
               // while Binance figures are still loading, hide the app's inaccurate crypto log
               let allTrades = accurate && !accurate.baseline && accurate.loading ? logged.filter(t => t.assetClass !== "CRYPTO") : logged;
@@ -1176,7 +1176,7 @@ export default function FXAngel() {
             </div>
 
             {(() => {
-              const PEAK_NAMES = { baseline: "Baseline", claude: "Claude", grok: "Grok", gemini: "Gemini", openai: "OpenAI" };
+              const PEAK_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel" };
               const PEAK_COLORS = { baseline: "#8b949e", claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff" };
               const baselineRows = (tradeHistory?.trades || []).map(t => ({ ...t, who: "baseline" }));
               // model trades are logged with entryPrice/qty/peakProfit; rebuild the same fields the baseline rows carry

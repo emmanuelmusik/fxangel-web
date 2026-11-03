@@ -11,6 +11,9 @@ const RED = "#ff4757";
 const MUTED = "#8b949e";
 const COLORS = { claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff", baseline: "#8b949e" };
 const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
+// display names by account key; applied everywhere so older trades saved under the old labels show the new names too
+export const NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel" };
+export const nameOf = (k, fallback) => NAMES[k] || fallback || k;
 
 const DAY = 86400000;
 export const SHIFT = 3600000; // GMT+1
