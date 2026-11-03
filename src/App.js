@@ -911,7 +911,7 @@ export default function FXAngel() {
             {(() => {
               // Accurate sources: baseline from Binance (fees included) replaces the bot's own crypto log
               // for the last 180 days; AI model trades come from the arena. FX stays as logged.
-              const MODEL_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel" };
+              const MODEL_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel", emmanuel: "Emmanuel" };
               const logged = (tradeHistory?.trades || []).map(t => ({ ...t, model: "baseline" }));
               // while Binance figures are still loading, hide the app's inaccurate crypto log
               let allTrades = accurate && !accurate.baseline && accurate.loading ? logged.filter(t => t.assetClass !== "CRYPTO") : logged;
@@ -1176,8 +1176,8 @@ export default function FXAngel() {
             </div>
 
             {(() => {
-              const PEAK_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel" };
-              const PEAK_COLORS = { baseline: "#8b949e", claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff" };
+              const PEAK_NAMES = { baseline: "Sentinel", claude: "Michael", grok: "Azrael", gemini: "Raphael", openai: "Uriel", emmanuel: "Emmanuel" };
+              const PEAK_COLORS = { baseline: "#8b949e", claude: "#e8a05a", grok: "#2dd4bf", gemini: "#6ea8ff", openai: "#b583ff", emmanuel: "#f5c542" };
               const baselineRows = (tradeHistory?.trades || []).map(t => ({ ...t, who: "baseline" }));
               // model trades are logged with entryPrice/qty/peakProfit; rebuild the same fields the baseline rows carry
               const modelRows = (peaksArena || []).map(t => {
@@ -1188,7 +1188,7 @@ export default function FXAngel() {
               const everyTrade = [...baselineRows, ...modelRows];
               const allTrades = peaksSource === "all" ? everyTrade : everyTrade.filter(t => t.who === peaksSource);
               const cryptoTrades = allTrades.filter(t => t.assetClass === "CRYPTO");
-              const reachGroups = ["claude", "grok", "gemini", "openai", "baseline"]
+              const reachGroups = ["claude", "grok", "gemini", "openai", "emmanuel", "baseline"]
                 .map(k => ({ key: k, label: PEAK_NAMES[k], color: PEAK_COLORS[k], rows: everyTrade.filter(t => t.who === k && t.assetClass === "CRYPTO") }))
                 .filter(g => g.rows.length);
               const withPeak = cryptoTrades.filter(t => t.peakProfit !== null && t.peakProfit !== undefined);

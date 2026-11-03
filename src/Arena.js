@@ -4,6 +4,7 @@ import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
 import CloseAll from "./CloseAll";
 import FableReview from "./FableReview";
+import EmmanuelReview from "./EmmanuelReview";
 
 // ─── ARENA ────────────────────────────────────────────────────────────────────
 // Claude / Grok / Gemini / OpenAI vs the rules engine, each on its own Binance
@@ -20,6 +21,7 @@ const COLORS = {
   grok: "#2dd4bf",
   gemini: "#6ea8ff",
   openai: "#b583ff",
+  emmanuel: "#f5c542",
   baseline: "#8b949e",
 };
 const colorOf = (k) => COLORS[k] || "#8b949e";
@@ -29,7 +31,7 @@ const tint = (k) => ({
   border: `1px solid ${colorOf(k)}66`,
   borderLeft: `4px solid ${colorOf(k)}`,
 });
-const ORDER = ["claude", "grok", "gemini", "openai", "baseline"];
+const ORDER = ["claude", "grok", "gemini", "openai", "emmanuel", "baseline"];
 const REFRESH_MS = 15000;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -959,6 +961,9 @@ export default function Arena({ baselineTrades }) {
 
           <SectionTitle>FABLE SECOND OPINION</SectionTitle>
           <FableReview />
+
+          <SectionTitle>EMMANUEL · SCOUT + JUDGE</SectionTitle>
+          <EmmanuelReview />
         </>
       )}
 
