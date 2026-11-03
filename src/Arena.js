@@ -112,11 +112,11 @@ function Pill({ children, color, solid }) {
   );
 }
 
-function ModelTag({ k, label }) {
+function ModelTag({ k, label, big }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
-      <span style={{ color: colorOf(k), fontSize: 12, fontWeight: 700 }}>{nameOf(k, label)}</span>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: big ? 8 : 6 }}>
+      <span style={{ width: big ? 10 : 8, height: big ? 10 : 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
+      <span style={{ color: colorOf(k), fontSize: big ? 16 : 12, fontWeight: big ? 800 : 700, letterSpacing: big ? 0.3 : 0 }}>{nameOf(k, label)}</span>
     </span>
   );
 }
@@ -423,7 +423,7 @@ function Leaderboard({ rows, openCounts, wallets }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 {!isShadow && <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 11 }}>#{i + 1}</span>}
-                <ModelTag k={r.account} label={r.label} />
+                <ModelTag k={r.account} label={r.label} big />
                 {r.model && <span style={{ color: "#484f58", fontFamily: MONO, fontSize: 9 }}>{r.model}</span>}
               </div>
               {r.account === "baseline" ? <Pill color="#8b949e">RULES</Pill> : modeBadge(r.mode)}
