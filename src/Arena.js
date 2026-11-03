@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ArenaCharts, { startOf, nextStart, prevStart, longLabel, SHIFT } from "./ArenaCharts";
+import ArenaCharts, { startOf, nextStart, prevStart, longLabel, SHIFT, nameOf } from "./ArenaCharts";
 import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
 import CloseAll from "./CloseAll";
@@ -116,7 +116,7 @@ function ModelTag({ k, label }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
-      <span style={{ color: colorOf(k), fontSize: 12, fontWeight: 700 }}>{label}</span>
+      <span style={{ color: colorOf(k), fontSize: 12, fontWeight: 700 }}>{nameOf(k, label)}</span>
     </span>
   );
 }
@@ -319,7 +319,7 @@ function LeagueTable({ rows, trades }) {
       const wins = mine.filter((t) => t.pnl > 0), losses = mine.filter((t) => t.pnl <= 0);
       const won = wins.reduce((s, t) => s + t.pnl, 0), lost = losses.reduce((s, t) => s + t.pnl, 0);
       return {
-        account: r.account, label: (r.label || r.account).replace(" (rules engine)", ""),
+        account: r.account, label: nameOf(r.account, (r.label || r.account).replace(" (rules engine)", "")),
         p: mine.length, w: wins.length, l: losses.length,
         pct: mine.length ? Math.round((wins.length / mine.length) * 100) : null,
         won, lost, net: Math.round((won + lost) * 100) / 100,
@@ -638,7 +638,7 @@ function Trades({ trades, reasons, filter }) {
                 <div style={{ color: pnlColor(t.pnl), fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{money(t.pnl)}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#8b949e", fontSize: 11, marginTop: 6 }}>
-                <span>{t.label} · {dayTime(t.closeTime)}</span>
+                <span>{nameOf(t.account, t.label)} · {dayTime(t.closeTime)}</span>
                 <span>{t.reason || ""}</span>
               </div>
               <PeakBar t={t} />
@@ -805,7 +805,7 @@ export default function Arena({ baselineTrades }) {
       ? data.baseline.map((t) => {
           const m = matchLog(t);
           return {
-            account: "baseline", label: "Baseline", pair: t.pair, direction: t.direction,
+            account: "baseline", label: nameOf("baseline"), pair: t.pair, direction: t.direction,
             entryPrice: m ? m.entry ?? m.entryPrice : null, closePrice: t.closePrice, pnl: num(t.pnl), reason: t.reason,
             openTime: m?.openTime || null, closeTime: t.closeTime, peakProfit: m ? m.peakProfit : null, qty: m ? m.qty : null, decisionId: null,
           };
@@ -815,7 +815,7 @@ export default function Arena({ baselineTrades }) {
       .filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs)
       .map((t) => ({
         account: "baseline",
-        label: "Baseline",
+        label: nameOf("baseline"),
         pair: t.pair,
         direction: t.direction || t.side || (t.type === "SELL" ? "SELL" : "BUY"),
         entryPrice: t.entry ?? t.entryPrice,
@@ -847,7 +847,7 @@ export default function Arena({ baselineTrades }) {
         let run = 0;
         const points = [{ t: t0, v: 0 }];
         for (const t of mine) { run += t.pnl; points.push({ t: new Date(t.closeTime).getTime(), v: +run.toFixed(2) }); }
-        return { account: k, label: k === "baseline" ? "Baseline" : row.label, points, final: +run.toFixed(2), live: (row.mode || "").toLowerCase().startsWith("live") || k === "baseline" };
+        return { account: k, label: nameOf(k, row.label), points, final: +run.toFixed(2), live: (row.mode || "").toLowerCase().startsWith("live") || k === "baseline" };
       })
       .filter((s) => s.live)
       .sort((a, b) => ORDER.indexOf(a.account) - ORDER.indexOf(b.account));
@@ -859,11 +859,11 @@ export default function Arena({ baselineTrades }) {
     const groups = (lb?.rows || [])
       .filter((r) => (r.mode || "").toLowerCase().startsWith("live") && r.account !== "baseline")
       .map((r) => ({
-        key: r.account, label: r.label, color: colorOf(r.account),
+        key: r.account, label: nameOf(r.account, r.label), color: colorOf(r.account),
         rows: (data.trades || []).filter((t) => t.account === r.account),
       }));
     groups.push({
-      key: "baseline", label: "Baseline", color: colorOf("baseline"),
+      key: "baseline", label: nameOf("baseline"), color: colorOf("baseline"),
       rows: (baselineTrades || []).filter((t) => (t.assetClass || "CRYPTO") === "CRYPTO" && new Date(t.closeTime || 0).getTime() >= sinceMs),
     });
     return groups.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
@@ -872,7 +872,7 @@ export default function Arena({ baselineTrades }) {
   const reasons = useMemo(() => Object.fromEntries((data.decisions || []).map((d) => [d.id, d])), [data.decisions]);
   const labels = useMemo(() => {
     const m = {};
-    (lb?.rows || []).forEach((r) => { m[r.account] = r.label; });
+    (lb?.rows || []).forEach((r) => { m[r.account] = nameOf(r.account, r.label); });
     return m;
   }, [lb]);
   const wallets = useMemo(() => Object.fromEntries((data.balances || []).map((b) => [b.account, b])), [data.balances]);
