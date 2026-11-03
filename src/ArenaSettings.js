@@ -12,8 +12,8 @@ const AMBER = "#ffa502";
 const PURPLE = "#a371f7";
 const PW_KEY = "fxangel_settings_pw";
 
-const MODEL_ORDER = ["claude", "grok", "gemini", "openai"];
-const MODEL_COLORS = { claude: "#e8a05a", grok: "#c9d1d9", gemini: "#6ea8ff", openai: "#b583ff" };
+const MODEL_ORDER = ["claude", "grok", "gemini", "openai", "emmanuel"];
+const MODEL_COLORS = { claude: "#e8a05a", grok: "#c9d1d9", gemini: "#6ea8ff", openai: "#b583ff", emmanuel: "#f5c542" };
 const MODEL_SUGGESTIONS = {
   anthropic: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
   xai: ["grok-4-fast"],
@@ -327,7 +327,8 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
 
             <div style={label}>MODEL ID</div>
             <input
-              style={{ ...input, marginBottom: 10 }} value={f.modelId} list={listId}
+              style={{ ...input, marginBottom: 10, ...(k === "emmanuel" ? { opacity: 0.6 } : {}) }} value={f.modelId} list={listId}
+              disabled={k === "emmanuel"} title={k === "emmanuel" ? "Emmanuel uses Gemini to scout and Fable to judge; set via Railway variables" : undefined}
               onChange={(e) => setModel(k, "modelId", e.target.value)}
             />
             <datalist id={listId}>{(MODEL_SUGGESTIONS[m.provider] || []).map((s) => <option key={s} value={s} />)}</datalist>
