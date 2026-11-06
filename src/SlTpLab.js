@@ -133,6 +133,7 @@ export default function SlTpLab({ labels, colors }) {
             })}
           </div>
           <Grid result={result} acct={result.accounts[active]} />
+          <ExitRules data={result.rules ? result.rules[active] : null} />
         </>
       )}
 
@@ -218,6 +219,51 @@ function Grid({ result, acct }) {
       </div>
       <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 8, lineHeight: 1.6 }}>
         Each box: net profit after fees, then win rate and number of trades. Columns are the target as a multiple of the stop (1:2 means target = 2 × stop). The white outline marks the best box.
+      </div>
+    </div>
+  );
+}
+
+// Exit rules: the same trades with each trade's real stop and target, plus a rule that moves the stop.
+function ExitRules({ data }) {
+  if (!data || !data.rows || !data.rows.length) return null;
+  const real = data.rows[0];
+  const th = { color: MUTED, fontFamily: MONO, fontSize: 9, fontWeight: 400, padding: "6px 4px", textAlign: "right", whiteSpace: "nowrap" };
+  const td = { fontFamily: MONO, fontSize: 11, padding: "7px 4px", textAlign: "right", whiteSpace: "nowrap" };
+  const tone = (n) => (n > 0 ? GREEN : n < 0 ? RED : MUTED);
+  // believable only if better than the real exits on BOTH halves of the trades
+  const both = (r) => r.id !== "none" && r.olderNet > real.olderNet && r.newerNet > real.newerNet;
+  return (
+    <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 12, marginTop: 10 }}>
+      <div style={{ color: MUTED, fontFamily: MONO, fontSize: 9, letterSpacing: 0.8 }}>EXIT RULES · SAME {data.trades} TRADES, REAL STOP AND TARGET</div>
+      <div style={{ color: "#cdd9e5", fontSize: 11, lineHeight: 1.5, margin: "6px 0 8px" }}>
+        What if the stop had moved after a trade went into profit? A ✓ means the rule beat the real exits on both the older and the newer half of the trades.
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 340 }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, textAlign: "left" }}>RULE</th>
+              <th style={th}>NET</th><th style={th}>VS REAL</th><th style={th}>OLDER</th><th style={th}>NEWER</th><th style={th}>WON</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((r) => (
+              <tr key={r.id} style={{ borderTop: "1px solid #21262d" }}>
+                <td style={{ ...td, textAlign: "left", color: "#cdd9e5", whiteSpace: "normal", fontSize: 10, lineHeight: 1.4 }}>{r.label}{both(r) ? <span style={{ color: GREEN }}> ✓</span> : ""}</td>
+                <td style={{ ...td, color: tone(r.net), fontWeight: 700 }}>{money(r.net)}</td>
+                <td style={{ ...td, color: r.id === "none" ? "#484f58" : tone(r.vsReal) }}>{r.id === "none" ? "–" : money(r.vsReal)}</td>
+                <td style={{ ...td, color: tone(r.olderNet) }}>{money(r.olderNet)}</td>
+                <td style={{ ...td, color: tone(r.newerNet) }}>{money(r.newerNet)}</td>
+                <td style={{ ...td, color: MUTED }}>{r.winRate != null ? `${r.winRate}%` : "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 8, lineHeight: 1.6 }}>
+        Net is after fees. The trade set is fixed by the real exits, so every rule is judged on the same entries. A stop that moves only counts from the next minute, and a minute that touches both stop and target counts the stop. This is a test only: nothing here changes live trading.
+        {data.trades < 30 ? ` Only ${data.trades} trades: treat it as a hint.` : ""}
       </div>
     </div>
   );
