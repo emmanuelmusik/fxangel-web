@@ -28,6 +28,7 @@ export default function SlTpLab({ labels, colors }) {
   const [lastDone, setLastDone] = useState(null); // newest finished run, kept on screen while a new one runs
   const [days, setDays] = useState(14);
   const [who, setWho] = useState(null);
+  const [mode, setMode] = useState("all");   // "all" = every signal counted, "pair" = one trade per coin at a time
   const [offline, setOffline] = useState(false);
   const timer = useRef(null);
 
@@ -56,7 +57,9 @@ export default function SlTpLab({ labels, colors }) {
 
   const shown = job && job.status === "done" ? job : lastDone;
   const result = shown ? shown.result : null;
-  const accounts = result ? Object.keys(result.accounts).sort() : [];
+  const hasAll = !!(result && result.accountsAll);   // older server results only have the one-per-coin version
+  const view = result ? (mode === "all" && hasAll ? result.accountsAll : result.accounts) : null;
+  const accounts = view ? Object.keys(view).sort() : [];
   const active = who && accounts.includes(who) ? who : accounts[0];
   const running = job && job.status === "running";
   const pct = running && job.progress.total ? Math.min(100, Math.round((job.progress.done / job.progress.total) * 100)) : 0;
@@ -132,14 +135,34 @@ export default function SlTpLab({ labels, colors }) {
               );
             })}
           </div>
-          <Grid result={result} acct={result.accounts[active]} />
+          {hasAll && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["all", "All trades"], ["pair", "One per coin"]].map(([k, label]) => {
+                  const on = mode === k;
+                  return (
+                    <button key={k} onClick={() => setMode(k)} style={{
+                      flex: 1, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "8px 10px", borderRadius: 8,
+                      background: on ? `${GREEN}22` : "#0d1117", border: `1px solid ${on ? GREEN : "#30363d"}`, color: on ? GREEN : MUTED, fontWeight: on ? 700 : 400,
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+              <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.5, marginTop: 6 }}>
+                {mode === "all"
+                  ? "Every logged signal is tested on its own, so every box uses the same trades. Best for comparing settings. Trades can overlap on the same coin, which live trading would not allow."
+                  : "A signal on a coin that already has a test trade open is skipped, as in live trading. Closer to real life, but wide settings test fewer trades, so boxes are not tested on the same signals."}
+              </div>
+            </div>
+          )}
+          <Grid result={result} acct={view[active]} />
           <ExitRules data={result.rules ? result.rules[active] : null} />
         </>
       )}
 
       <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 10, lineHeight: 1.6 }}>
         Past entries only: this shows how different stops and targets would have worked on the trades the models chose, not whether a different stop would have changed what they chose.
-        If one minute touches both levels, the stop counts first. Decisions that failed to open are included. One trade per coin at a time, as in live trading.
+        If one minute touches both levels, the stop counts first. Decisions that failed to open are included. Switch between all trades and one trade per coin at a time (as in live trading) above the table.
         A setting that fits the past well may not work next week.
       </div>
     </div>
