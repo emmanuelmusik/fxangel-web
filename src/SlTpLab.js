@@ -28,7 +28,7 @@ export default function SlTpLab({ labels, colors }) {
   const [lastDone, setLastDone] = useState(null); // newest finished run, kept on screen while a new one runs
   const [days, setDays] = useState(14);
   const [who, setWho] = useState(null);
-  const [mode, setMode] = useState("all");   // "all" = every signal counted, "pair" = one trade per coin at a time
+  const [limit, setLimit] = useState("0");   // most test trades open on one coin at once: "1".."4", "0" = no limit
   const [offline, setOffline] = useState(false);
   const timer = useRef(null);
 
@@ -57,8 +57,10 @@ export default function SlTpLab({ labels, colors }) {
 
   const shown = job && job.status === "done" ? job : lastDone;
   const result = shown ? shown.result : null;
-  const hasAll = !!(result && result.accountsAll);   // older server results only have the one-per-coin version
-  const view = result ? (mode === "all" && hasAll ? result.accountsAll : result.accounts) : null;
+  const hasLimits = !!(result && result.byLimit);     // older server results only have the one-per-coin (and all-trades) versions
+  const hasAll = !!(result && result.accountsAll);
+  const lim = hasLimits ? limit : (limit === "1" || !hasAll ? "1" : "0");
+  const view = result ? (hasLimits ? result.byLimit[lim] : lim === "0" ? result.accountsAll : result.accounts) : null;
   const accounts = view ? Object.keys(view).sort() : [];
   const active = who && accounts.includes(who) ? who : accounts[0];
   const running = job && job.status === "running";
@@ -135,41 +137,44 @@ export default function SlTpLab({ labels, colors }) {
               );
             })}
           </div>
-          {hasAll && (
+          {(hasLimits || hasAll) && (
             <div style={{ marginBottom: 10 }}>
+              <div style={{ color: MUTED, fontFamily: MONO, fontSize: 9, letterSpacing: 0.8, marginBottom: 6 }}>MOST TRADES OPEN ON ONE COIN AT ONCE</div>
               <div style={{ display: "flex", gap: 6 }}>
-                {[["all", "All trades"], ["pair", "One per coin"]].map(([k, label]) => {
-                  const on = mode === k;
+                {(hasLimits ? [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["0", "No limit"]] : [["1", "1"], ["0", "No limit"]]).map(([k, label]) => {
+                  const on = lim === k;
                   return (
-                    <button key={k} onClick={() => setMode(k)} style={{
-                      flex: 1, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "8px 10px", borderRadius: 8,
+                    <button key={k} onClick={() => setLimit(k)} style={{
+                      flex: 1, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "8px 6px", borderRadius: 8,
                       background: on ? `${GREEN}22` : "#0d1117", border: `1px solid ${on ? GREEN : "#30363d"}`, color: on ? GREEN : MUTED, fontWeight: on ? 700 : 400,
                     }}>{label}</button>
                   );
                 })}
               </div>
               <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.5, marginTop: 6 }}>
-                {mode === "all"
-                  ? "Every logged signal is tested on its own, so every box uses the same trades. Best for comparing settings. Trades can overlap on the same coin, which live trading would not allow."
-                  : "A signal on a coin that already has a test trade open is skipped, as in live trading. Closer to real life, but wide settings test fewer trades, so boxes are not tested on the same signals."}
+                {lim === "1"
+                  ? "As in live trading: a signal on a coin that already has a test trade open is skipped. Closest to real life, but wide settings test fewer trades, so boxes are not tested on the same signals."
+                  : lim === "0"
+                  ? "Every logged signal is tested on its own, so every box uses the same trades. Best for comparing settings. Live trading would not allow these overlaps: see the overlap figure in each box."
+                  : `Up to ${lim} test trades may be open on the same coin at once. Live trading allows only 1, so this shows what a higher limit would have done. Each box shows how many trades overlapped.`}
               </div>
             </div>
           )}
-          <Grid result={result} acct={view[active]} />
+          <Grid result={result} acct={view[active]} showOverlap={lim !== "1"} />
           <ExitRules data={result.rules ? result.rules[active] : null} />
         </>
       )}
 
       <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 10, lineHeight: 1.6 }}>
         Past entries only: this shows how different stops and targets would have worked on the trades the models chose, not whether a different stop would have changed what they chose.
-        If one minute touches both levels, the stop counts first. Decisions that failed to open are included. Switch between all trades and one trade per coin at a time (as in live trading) above the table.
+        If one minute touches both levels, the stop counts first. Decisions that failed to open are included. Use the selector above the table to allow more than one open trade per coin (live trading allows one).
         A setting that fits the past well may not work next week.
       </div>
     </div>
   );
 }
 
-function Grid({ result, acct }) {
+function Grid({ result, acct, showOverlap }) {
   if (!acct) return null;
   const { slGrid, ratios, minReliable } = result;
   const byKey = {};
@@ -226,12 +231,13 @@ function Grid({ result, acct }) {
                   const tone = c.net >= 0 ? "0,229,160" : "255,71,87";
                   const a = (0.1 + 0.4 * (Math.abs(c.net) / maxAbs)).toFixed(2);
                   return (
-                    <td key={r} title={`${c.wins} won · ${c.losses} lost · ${c.open} still open · fees ${money(-c.fees)}`} style={{
+                    <td key={r} title={`${c.wins} won · ${c.losses} lost · ${c.open} still open · fees ${money(-c.fees)}${c.overlapping != null ? ` · ${c.overlapping} opened while another was open on the same coin · most at once ${c.peak}` : ""}`} style={{
                       textAlign: "center", padding: "7px 2px", borderRadius: 8, background: `rgba(${tone},${a})`,
                       outline: isBest ? `2px solid #fff` : "none", outlineOffset: -2,
                     }}>
                       <div style={{ color: c.net >= 0 ? GREEN : RED, fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{money(c.net)}</div>
                       <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, marginTop: 1 }}>{c.winRate != null ? `${c.winRate}% · ` : ""}{c.n}</div>
+                      {showOverlap && c.overlapping != null && <div style={{ color: AMBER, fontFamily: MONO, fontSize: 7, marginTop: 1, opacity: 0.85 }}>{c.overlapping} overlap · max {c.peak}</div>}
                     </td>
                   );
                 })}
