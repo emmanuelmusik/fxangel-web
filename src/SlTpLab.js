@@ -30,6 +30,7 @@ export default function SlTpLab({ labels, colors }) {
   const [who, setWho] = useState(null);
   const [limit, setLimit] = useState("0");   // most test trades open on one coin at once: "1".."4", "0" = no limit
   const [offline, setOffline] = useState(false);
+  const [pick, setPick] = useState(null);     // box the user tapped: { acct, sl, tp, ratio, net, n, winRate }
   const timer = useRef(null);
 
   const refresh = useCallback(async () => {
@@ -130,7 +131,7 @@ export default function SlTpLab({ labels, colors }) {
               const on = k === active;
               const c = colors[k] || MUTED;
               return (
-                <button key={k} onClick={() => setWho(k)} style={{
+                <button key={k} onClick={() => { setWho(k); setPick(null); }} style={{
                   flexShrink: 0, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "7px 14px", borderRadius: 18,
                   background: on ? `${c}22` : "#0d1117", border: `1px solid ${on ? c : "#30363d"}`, color: on ? c : MUTED, fontWeight: on ? 700 : 400,
                 }}>{labels[k] || k}</button>
@@ -144,7 +145,7 @@ export default function SlTpLab({ labels, colors }) {
                 {(hasLimits ? [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["0", "No limit"]] : [["1", "1"], ["0", "No limit"]]).map(([k, label]) => {
                   const on = lim === k;
                   return (
-                    <button key={k} onClick={() => setLimit(k)} style={{
+                    <button key={k} onClick={() => { setLimit(k); setPick(null); }} style={{
                       flex: 1, cursor: "pointer", fontFamily: MONO, fontSize: 11, padding: "8px 6px", borderRadius: 8,
                       background: on ? `${GREEN}22` : "#0d1117", border: `1px solid ${on ? GREEN : "#30363d"}`, color: on ? GREEN : MUTED, fontWeight: on ? 700 : 400,
                     }}>{label}</button>
@@ -160,7 +161,8 @@ export default function SlTpLab({ labels, colors }) {
               </div>
             </div>
           )}
-          <Grid result={result} acct={view[active]} showOverlap={lim !== "1"} />
+          <Grid result={result} acct={view[active]} showOverlap={lim !== "1"} picked={pick && pick.acct === active ? pick : null} onPick={(c) => setPick({ acct: active, sl: c.slPct, tp: c.tpPct, ratio: c.ratio, net: c.net, n: c.n, winRate: c.winRate })} />
+          <ApplyPanel acct={active} label={labels[active] || active} pick={pick && pick.acct === active ? pick : null} onClear={() => setPick(null)} />
           <ExitRules data={result.rules ? result.rules[active] : null} />
         </>
       )}
@@ -174,7 +176,7 @@ export default function SlTpLab({ labels, colors }) {
   );
 }
 
-function Grid({ result, acct, showOverlap }) {
+function Grid({ result, acct, showOverlap, picked, onPick }) {
   if (!acct) return null;
   const { slGrid, ratios, minReliable } = result;
   const byKey = {};
@@ -231,9 +233,9 @@ function Grid({ result, acct, showOverlap }) {
                   const tone = c.net >= 0 ? "0,229,160" : "255,71,87";
                   const a = (0.1 + 0.4 * (Math.abs(c.net) / maxAbs)).toFixed(2);
                   return (
-                    <td key={r} title={`${c.wins} won · ${c.losses} lost · ${c.open} still open · fees ${money(-c.fees)}${c.overlapping != null ? ` · ${c.overlapping} opened while another was open on the same coin · most at once ${c.peak}` : ""}`} style={{
-                      textAlign: "center", padding: "7px 2px", borderRadius: 8, background: `rgba(${tone},${a})`,
-                      outline: isBest ? `2px solid #fff` : "none", outlineOffset: -2,
+                    <td key={r} onClick={() => onPick(c)} title={`Tap to apply · ${c.wins} won · ${c.losses} lost · ${c.open} still open · fees ${money(-c.fees)}${c.overlapping != null ? ` · ${c.overlapping} opened while another was open on the same coin · most at once ${c.peak}` : ""}`} style={{
+                      textAlign: "center", padding: "7px 2px", borderRadius: 8, background: `rgba(${tone},${a})`, cursor: "pointer",
+                      outline: picked && picked.sl === c.slPct && picked.ratio === c.ratio ? `2px solid ${AMBER}` : isBest ? `2px solid #fff` : "none", outlineOffset: -2,
                     }}>
                       <div style={{ color: c.net >= 0 ? GREEN : RED, fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{money(c.net)}</div>
                       <div style={{ color: MUTED, fontFamily: MONO, fontSize: 8, marginTop: 1 }}>{c.winRate != null ? `${c.winRate}% · ` : ""}{c.n}</div>
@@ -247,7 +249,7 @@ function Grid({ result, acct, showOverlap }) {
         </table>
       </div>
       <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9, marginTop: 8, lineHeight: 1.6 }}>
-        Each box: net profit after fees, then win rate and number of trades. Columns are the target as a multiple of the stop (1:2 means target = 2 × stop). The white outline marks the best box.
+        Each box: net profit after fees, then win rate and number of trades. Columns are the target as a multiple of the stop (1:2 means target = 2 × stop). The white outline marks the best box. Tap a box to apply its stop and target to this Angel.
       </div>
     </div>
   );
@@ -294,6 +296,116 @@ function ExitRules({ data }) {
         Net is after fees. The trade set is fixed by the real exits, so every rule is judged on the same entries. A stop that moves only counts from the next minute, and a minute that touches both stop and target counts the stop. This is a test only: nothing here changes live trading.
         {data.trades < 30 ? ` Only ${data.trades} trades: treat it as a hint.` : ""}
       </div>
+    </div>
+  );
+}
+
+
+// Tap a box in the grid -> confirm -> the stop and target become that Angel's FIXED setting (min = max).
+// Uses the same password-protected settings route as the Settings screen.
+function currentText(d, acct) {
+  if (!d) return "…";
+  if (acct === "baseline") {
+    const rows = Object.values(d.baseline || {});
+    const pct = rows.filter((b) => b.slPct != null && b.tpPct != null);
+    if (!rows.length) return "…";
+    if (pct.length === rows.length) {
+      const sl = [...new Set(pct.map((b) => b.slPct))], tp = [...new Set(pct.map((b) => b.tpPct))];
+      return `stop ${sl.join("/")}% · target ${tp.join("/")}% on every coin`;
+    }
+    return pct.length ? `percent on ${pct.length} of ${rows.length} coins, fixed dollars on the rest` : "fixed dollars per coin (not percent)";
+  }
+  const m = (d.models || {})[acct];
+  if (!m) return "…";
+  const rng = (a, b) => (a === b ? `${a}%` : `${a}–${b}%`);
+  const fixed = m.slMinPct === m.slMaxPct && m.tpMinPct === m.tpMaxPct;
+  return `stop ${rng(m.slMinPct, m.slMaxPct)} · target ${rng(m.tpMinPct, m.tpMaxPct)} ${fixed ? "(fixed)" : "(the model picks inside this range)"}`;
+}
+
+function ApplyPanel({ acct, label, pick, onClear }) {
+  const [data, setData] = useState(null);
+  const [pw, setPw] = useState("");   // typed fresh for every change: never saved or reused
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);   // { ok, text }
+
+  const load = useCallback(async () => { const d = await api("/api/arena/settings"); if (d) setData(d); }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setMsg(null); }, [acct]);
+  useEffect(() => { if (pick) setMsg(null); }, [pick]);   // keep the result message after the box is cleared
+
+  const send = async (patch, okText) => {
+    if (!pw) { setMsg({ ok: false, text: "Type the settings password first, then press Apply." }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch(`${BASE}/api/arena/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw, patch }) });
+      let j = {}; try { j = await r.json(); } catch { /* keep {} */ }
+      if (r.ok) {
+        setData(j); setMsg({ ok: true, text: okText }); if (pick) onClear();
+      } else {
+        setMsg({ ok: false, text: r.status === 403 ? "Wrong password. Nothing was changed." : (j.error || `Could not save (HTTP ${r.status})`) });
+      }
+      setPw("");
+    } catch (e) { setMsg({ ok: false, text: `Could not reach the server (${e.message})` }); }
+    setBusy(false);
+  };
+
+  const symbols = data ? Object.keys(data.baseline || {}) : [];
+  const apply = () => {
+    if (acct === "baseline") {
+      if (!symbols.length) { setMsg({ ok: false, text: "Settings not loaded yet. Try again in a moment." }); return; }
+      const patch = { baseline: {} };
+      for (const sym of symbols) patch.baseline[sym] = { slPct: pick.sl, tpPct: pick.tp };
+      send(patch, `Sentinel now uses stop ${pick.sl}% and target ${pick.tp}% on every coin, from its next trade.`);
+    } else {
+      send({ models: { [acct]: { slMinPct: pick.sl, slMaxPct: pick.sl, tpMinPct: pick.tp, tpMaxPct: pick.tp } } }, `${label} now uses stop ${pick.sl}% and target ${pick.tp}%, from its next trade.`);
+    }
+  };
+  const reset = () => {
+    if (!window.confirm(`Put ${label}'s stop and target back to the defaults?`)) return;
+    if (acct === "baseline") {
+      const patch = { baseline: {} };
+      for (const sym of symbols) patch.baseline[sym] = { slPct: null, tpPct: null };
+      send(patch, "Sentinel is back to its default fixed-dollar stops and targets.");
+    } else {
+      send({ models: { [acct]: { slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null } } }, `${label} is back to the default stop and target range.`);
+    }
+  };
+
+  const btn = (bg, fg) => ({ background: bg, color: fg, border: "none", borderRadius: 8, fontFamily: MONO, fontSize: 11, fontWeight: 700, padding: "10px 14px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 });
+  return (
+    <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 12, padding: 12, marginTop: 10 }}>
+      <div style={{ color: MUTED, fontFamily: MONO, fontSize: 9, letterSpacing: 0.8 }}>APPLIED NOW · {label.toUpperCase()}</div>
+      <div style={{ color: "#cdd9e5", fontFamily: MONO, fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>{currentText(data, acct)}</div>
+
+      {pick && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #21262d" }}>
+          <div style={{ color: "#fff", fontSize: 12, lineHeight: 1.6 }}>
+            Apply <b style={{ fontFamily: MONO }}>stop {pick.sl}% · target {pick.tp}%</b> to {label}?
+            {acct === "baseline" ? " It sets this percent on every coin, in place of the dollar amounts." : " It becomes a fixed value: the model can no longer choose its own."}
+            {" "}In this test: <span style={{ color: pick.net >= 0 ? GREEN : RED, fontFamily: MONO }}>{money(pick.net)}</span> on {pick.n} trades{pick.winRate != null ? ` · ${pick.winRate}% won` : ""}. A test result, not a promise.
+          </div>
+          {(
+            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !busy) apply(); }} placeholder="Type your settings password to confirm" autoComplete="off" style={{
+              marginTop: 8, width: "100%", boxSizing: "border-box", background: "#010409", border: "1px solid #30363d", borderRadius: 8, color: "#cdd9e5", fontFamily: MONO, fontSize: 11, padding: "9px 10px",
+            }} />
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={apply} disabled={busy} style={btn(GREEN, "#010409")}>{busy ? "Saving…" : "Apply"}</button>
+            <button onClick={onClear} disabled={busy} style={btn("#21262d", MUTED)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {!pick && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+          <button onClick={reset} disabled={busy || !data} style={btn("#21262d", "#cdd9e5")}>Reset to default</button>
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password (needed to reset)" autoComplete="off" style={{
+            background: "#010409", border: "1px solid #30363d", borderRadius: 8, color: "#cdd9e5", fontFamily: MONO, fontSize: 11, padding: "9px 10px",
+          }} />
+          <span style={{ color: "#484f58", fontFamily: MONO, fontSize: 9 }}>Tap a box above to apply it.</span>
+        </div>
+      )}
+      {msg && <div style={{ color: msg.ok ? GREEN : RED, fontFamily: MONO, fontSize: 10, marginTop: 8, lineHeight: 1.5 }}>{msg.text}</div>}
     </div>
   );
 }
