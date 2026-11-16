@@ -929,6 +929,7 @@ export default function FXAngel() {
                 pair: t.pair, direction: t.direction, entry: t.entryPrice, closePrice: t.closePrice,
                 pnl: (parseFloat(t.pnl) || 0).toFixed(2), reason: t.reason, closeTime: t.closeTime,
                 assetClass: "CRYPTO", model: String(t.account || "").toLowerCase(),
+                qty: t.qty, leverage: t.leverage, margin: t.margin, notional: t.notional,
               }));
               allTrades = [...allTrades, ...modelTrades].sort((a, b) => new Date(b.closeTime || 0) - new Date(a.closeTime || 0));
               if (historyModel !== "ALL") allTrades = allTrades.filter(t => t.model === historyModel);
@@ -1153,6 +1154,15 @@ export default function FXAngel() {
                               <span>In: {t.entry} → Out: {t.closePrice}</span>
                               <span>{t.reason}</span>
                             </div>
+                            {(() => {
+                              const notional = t.notional != null ? +t.notional : (t.qty > 0 && +t.entry > 0 ? t.qty * +t.entry : null);
+                              const lev = t.leverage > 0 ? +t.leverage : null;
+                              const margin = t.margin != null ? +t.margin : (notional != null && lev ? notional / lev : null);
+                              const f = (n) => `$${n >= 100 ? Math.round(n) : n.toFixed(2).replace(/\.00$/, "")}`;
+                              if (margin != null && lev) return <div style={{ fontSize: 9, color: "#8b949e", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>Margin {f(margin)} × {lev}x = {f(notional ?? margin * lev)} position</div>;
+                              if (notional != null) return <div style={{ fontSize: 9, color: "#6e7681", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>Position ≈ {f(notional)} (leverage not recorded)</div>;
+                              return null;
+                            })()}
                             <div style={{ fontSize: 8, color: "#5a6573", fontFamily: "'Space Mono', monospace", marginTop: 4 }}>
                               {new Date(t.closeTime).toLocaleString()}
                             </div>
