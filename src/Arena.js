@@ -608,6 +608,16 @@ function OpenPositions({ open }) {
 }
 
 // ─── closed trades ────────────────────────────────────────────────────────────
+// margin x leverage of a closed trade. Older trades have no margin/leverage on record: then only the position size can be worked out.
+function sizeOf(t) {
+  const entry = t.entryPrice ?? t.entry;
+  const notional = t.notional != null ? Number(t.notional) : (t.qty > 0 && entry > 0 ? Number(t.qty) * Number(entry) : null);
+  const lev = t.leverage > 0 ? Number(t.leverage) : null;
+  const margin = t.margin != null ? Number(t.margin) : (notional != null && lev ? notional / lev : null);
+  return { notional, lev, margin };
+}
+const usd0 = (n) => `$${n >= 100 ? Math.round(n) : n.toFixed(2).replace(/\.00$/, "")}`;
+
 function Trades({ trades, reasons, filter }) {
   const [openId, setOpenId] = useState(null);
   const [limit, setLimit] = useState(25);
@@ -629,6 +639,7 @@ function Trades({ trades, reasons, filter }) {
           const id = `${t.account}-${t.pair}-${t.closeTime}`;
           const open = openId === id;
           const why = t.decisionId ? reasons[t.decisionId] : null;
+          const sz = sizeOf(t);
           return (
             <Card key={id} onClick={() => setOpenId(open ? null : id)} style={{ ...tint(t.account), padding: "11px 13px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -636,6 +647,8 @@ function Trades({ trades, reasons, filter }) {
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: colorOf(t.account), flexShrink: 0 }} />
                   <span style={{ color: "#fff", fontFamily: MONO, fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
                   <Pill color={t.direction === "BUY" ? GREEN : RED}>{t.direction === "BUY" ? "LONG" : "SHORT"}</Pill>
+                  {sz.margin != null && sz.lev ? <span style={{ color: "#8b949e", fontFamily: MONO, fontSize: 10 }}>{usd0(sz.margin)} × {sz.lev}x</span>
+                    : sz.notional != null ? <span style={{ color: "#6e7681", fontFamily: MONO, fontSize: 10 }}>{usd0(sz.notional)} pos</span> : null}
                 </div>
                 <div style={{ color: pnlColor(t.pnl), fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{money(t.pnl)}</div>
               </div>
@@ -648,6 +661,8 @@ function Trades({ trades, reasons, filter }) {
                 <div style={{ borderTop: "1px solid #21262d", marginTop: 10, paddingTop: 10, fontSize: 11, color: "#8b949e", lineHeight: 1.7 }}>
                   <div>{t.entryPrice != null ? `Entry ${price(t.entryPrice)} → exit ${price(t.closePrice)}` : `Exit ${price(t.closePrice)}`}</div>
                   {t.openTime && <div>Held {duration(t.openTime, t.closeTime)} (opened {dayTime(t.openTime)})</div>}
+                  {sz.margin != null && sz.lev ? <div>Margin {usd0(sz.margin)} × {sz.lev}x leverage = {usd0(sz.notional ?? sz.margin * sz.lev)} position{t.slPct != null && t.tpPct != null ? ` · stop ${t.slPct}% · target ${t.tpPct}%` : ""}</div>
+                    : sz.notional != null ? <div>Position about {usd0(sz.notional)} (margin and leverage were not recorded for this trade)</div> : null}
                   {why ? (
                     <div style={{ color: "#cdd9e5", marginTop: 6 }}>
                       <span style={{ color: "#8b949e" }}>Why the model took it: </span>“{why.reason}”
