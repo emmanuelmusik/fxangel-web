@@ -597,6 +597,8 @@ function OpenPositions({ open }) {
             <Stat label="TARGET" value={price(p.tp)} color={GREEN} />
           </div>
           <div style={{ color: "#8b949e", fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
+            {p.margin != null && p.leverage ? <div style={{ color: "#8b949e", marginBottom: 4 }}>Margin ${p.margin} × {p.leverage}x = ${Math.round(p.notional ?? p.margin * p.leverage)} position</div>
+              : p.notional != null ? <div style={{ color: "#6e7681", marginBottom: 4 }}>Position about ${Math.round(p.notional)} (leverage not recorded)</div> : null}
             Opened {ago(p.openTime)}
             {p.confidence != null ? ` · model confidence ${p.confidence}%` : ""}
             {p.reason ? <div style={{ color: "#cdd9e5", marginTop: 4 }}>“{p.reason}”</div> : null}
