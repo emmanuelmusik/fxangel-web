@@ -503,6 +503,7 @@ export default function FXAngel() {
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [historyCoin, setHistoryCoin] = useState("ALL"); // ALL | a pair such as BTC/USD
   const [historyModel, setHistoryModel] = useState("ALL"); // ALL | baseline | claude | grok | gemini | openai
   const [accurate, setAccurate] = useState(null); // { baseline: [...], models: [...] } straight from Binance / the arena
   const [peaksSlOnly, setPeaksSlOnly] = useState(false);
@@ -952,8 +953,14 @@ export default function FXAngel() {
                 return ts >= periodFrom && ts <= periodTo;
               });
 
-              const filtered = historyFilter === "ALL" ? periodFiltered
+              const byClass = historyFilter === "ALL" ? periodFiltered
                 : periodFiltered.filter(t => t.assetClass === historyFilter);
+              // coins that appear in the current selection, most traded first
+              const coinCount = {};
+              for (const t of byClass) if (t.pair) coinCount[t.pair] = (coinCount[t.pair] || 0) + 1;
+              const coinList = Object.keys(coinCount).sort((a, b) => coinCount[b] - coinCount[a] || a.localeCompare(b));
+              const coinSel = coinCount[historyCoin] ? historyCoin : "ALL";
+              const filtered = coinSel === "ALL" ? byClass : byClass.filter(t => t.pair === coinSel);
               const totalPnl = filtered.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
               const wins = filtered.filter(t => parseFloat(t.pnl) > 0).length;
               const losses = filtered.filter(t => parseFloat(t.pnl) < 0).length;
@@ -996,6 +1003,21 @@ export default function FXAngel() {
                       }}>{tab.label}</button>
                     ))}
                   </div>
+
+                  {/* Coin selector */}
+                  {coinList.length > 1 && (
+                    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                      {["ALL", ...coinList].map(c => (
+                        <button key={c} onClick={() => setHistoryCoin(c)} style={{
+                          padding: "6px 9px",
+                          background: coinSel === c ? "#ffa50220" : "#0d1117",
+                          border: `1px solid ${coinSel === c ? "#ffa502" : "#21262d"}`,
+                          borderRadius: 10, color: coinSel === c ? "#ffa502" : "#8b949e",
+                          fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, cursor: "pointer",
+                        }}>{c === "ALL" ? "All coins" : `${c.replace("/USD", "")} · ${coinCount[c]}`}</button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Period selector — Day / Week / Month / All / Custom */}
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
