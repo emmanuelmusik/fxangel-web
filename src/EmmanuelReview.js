@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-// Emmanuel = Gemini scouts the market (live data), Fable judges and places the trade.
+// Emmanuel (direct mode) = Fable reads the candles for each coin and trades; scout mode = Gemini scouts, Fable judges.
 // This card shows every scan: what the scout proposed, what the judge said, and what it cost.
 
 const MONO = "'Space Mono', monospace";
@@ -57,10 +57,12 @@ export default function EmmanuelReview() {
   return (
     <div style={card}>
       <div style={{ color: "#cdd9e5", fontSize: 12, lineHeight: 1.6 }}>
-        Every {data.periodMin} minutes, inside the trading window, Gemini studies the live market through tools and proposes one setup or nothing. Fable then judges it with the same data and limits as the other models, picks its own stop and target, and places the trade on Emmanuel's own account. Same coins and limits as everyone else.
+        {data.mode === "direct"
+          ? `Every ${data.periodMin} minutes, inside the trading window, Fable reads the candle report (5m, 15m, 1h, 4h) for each of Emmanuel's coins, decides BUY, SELL or SKIP, picks its own stop and target, and places the trade on Emmanuel's own account. No scout and no signals from other Angels.`
+          : `Every ${data.periodMin} minutes, inside the trading window, Gemini studies the live market through tools and proposes one setup or nothing. Fable then judges it with the same data and limits as the other models, picks its own stop and target, and places the trade on Emmanuel's own account. Same coins and limits as everyone else.`}
       </div>
       {!data.enabled && (
-        <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>Switched off (EMMANUEL_ENABLED=false, a missing GEMINI_API_KEY or ANTHROPIC_API_KEY, or turned off in Settings).</div>
+        <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>Switched off (EMMANUEL_ENABLED=false, a missing ANTHROPIC_API_KEY (or GEMINI_API_KEY in scout mode), or turned off in Settings).</div>
       )}
       {data.enabled && data.cache && !data.cache.fresh && (
         <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>
@@ -68,8 +70,8 @@ export default function EmmanuelReview() {
         </div>
       )}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14 }}>
-        <Stat label="SCANS" big={s.scans} sub={`${s.proposed} proposed · ${s.none} nothing${s.errors ? ` · ${s.errors} failed` : ""}`} />
-        <Stat label="JUDGE" big={`${s.agree} yes`} color={GREEN} sub={`${s.disagree} skip · ${s.flip} flipped`} />
+        <Stat label="SCANS" big={s.scans} sub={data.mode === "direct" ? `${s.direct?.calls || 0} coin checks${s.errors ? ` · ${s.errors} failed` : ""}` : `${s.proposed} proposed · ${s.none} nothing${s.errors ? ` · ${s.errors} failed` : ""}`} />
+        <Stat label={data.mode === "direct" ? "FABLE'S CALLS" : "JUDGE"} big={data.mode === "direct" ? `${(s.direct?.buy || 0) + (s.direct?.sell || 0)} trades` : `${s.agree} yes`} color={GREEN} sub={data.mode === "direct" ? `${s.direct?.buy || 0} buy · ${s.direct?.sell || 0} sell · ${s.direct?.skip || 0} skip` : `${s.disagree} skip · ${s.flip} flipped`} />
         {s.own && s.own.n > 0 && <Stat label="EMMANUEL'S TRADES" big={money(s.own.net)} color={tone(s.own.net)} sub={`${s.own.n} closed${s.own.winRate != null ? ` · ${s.own.winRate}% won` : ""}${s.own.open ? ` · ${s.own.open} open` : ""}`} />}
         <Stat label="SPENT TODAY" big={`$${data.spentToday.toFixed(2)}`} sub={`of $${data.budgetUsd} · ${data.scansToday}/${data.maxScans} scans · $${s.spent.toFixed(2)} in total`} />
       </div>
@@ -78,6 +80,28 @@ export default function EmmanuelReview() {
         {data.rows.length === 0 && <div style={{ color: "#484f58", fontFamily: MONO, fontSize: 9 }}>No scans yet. The first one runs at the next full hour inside the trading window.</div>}
         {data.rows.filter((r) => !r.skippedBudget).slice(0, 12).map((r) => {
           const v = VERDICT[r.verdict] || { text: r.verdict || "…", color: MUTED };
+          if (r.direct) {
+            const when = new Date(r.ts).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+            return (
+              <div key={r.id} style={{ borderTop: "1px solid #21262d", padding: "8px 0" }}>
+                <div style={{ display: "flex", gap: 8, fontFamily: MONO, fontSize: 10, color: MUTED }}>
+                  <span>{when}</span>{r.budgetStop && <span style={{ color: AMBER }}>stopped: daily budget reached</span>}
+                  <span style={{ marginLeft: "auto" }}>${(r.costUsd || 0).toFixed(3)}</span>
+                </div>
+                {(r.calls || []).map((c) => (
+                  <div key={c.pair} style={{ marginTop: 4, fontSize: 11, lineHeight: 1.5 }}>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: c.action === "BUY" ? GREEN : c.action === "SELL" ? RED : MUTED, fontWeight: 700 }}>{c.pair} {c.action || "not judged"}{c.confidence && c.action !== "SKIP" ? ` ${c.confidence}%` : ""}</span>
+                    {c.slPct != null && c.action !== "SKIP" && <span style={{ color: MUTED, fontFamily: MONO, fontSize: 10 }}> · SL {c.slPct}% · TP {c.tpPct}%</span>}
+                    {c.executed && <span style={{ color: GOLD, fontFamily: MONO, fontSize: 10 }}> · traded</span>}
+                    {c.pnl != null && <span style={{ color: tone(c.pnl), fontFamily: MONO, fontSize: 10 }}> · {money(c.pnl)}</span>}
+                    {c.reason && <div style={{ color: MUTED }}>{c.reason}</div>}
+                    {!c.action && c.note && <div style={{ color: MUTED }}>{c.note}</div>}
+                    {c.apiError && <div style={{ color: RED }}>{c.note}</div>}
+                  </div>
+                ))}
+              </div>
+            );
+          }
           return (
             <div key={r.id} style={{ borderTop: "1px solid #21262d", padding: "8px 0" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontFamily: MONO, fontSize: 10 }}>
