@@ -57,18 +57,21 @@ export default function EmmanuelReview() {
   return (
     <div style={card}>
       <div style={{ color: "#cdd9e5", fontSize: 12, lineHeight: 1.6 }}>
-        {data.mode === "direct"
+        {data.mode === "sentinel"
+          ? "Emmanuel does not scan the market. Each time Sentinel's rules engine fires a signal, a Gemini model gets the full candle report plus the signal, decides BUY, SELL or SKIP, picks its own stop and target, and places the trade on Emmanuel's own account. His decisions and trades appear in the Arena lists like the other Angels."
+          : data.mode === "direct"
           ? `Every ${data.periodMin} minutes, inside the trading window, Fable reads the candle report (5m, 15m, 1h, 4h) for each of Emmanuel's coins, decides BUY, SELL or SKIP, picks its own stop and target, and places the trade on Emmanuel's own account. No scout and no signals from other Angels.`
           : `Every ${data.periodMin} minutes, inside the trading window, Gemini studies the live market through tools and proposes one setup or nothing. Fable then judges it with the same data and limits as the other models, picks its own stop and target, and places the trade on Emmanuel's own account. Same coins and limits as everyone else.`}
       </div>
       {!data.enabled && (
-        <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>Switched off (EMMANUEL_ENABLED=false, a missing ANTHROPIC_API_KEY (or GEMINI_API_KEY in scout mode), or turned off in Settings).</div>
+        <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>Switched off (EMMANUEL_ENABLED=false, a missing GEMINI_API_KEY (sentinel mode) or ANTHROPIC_API_KEY (direct mode), or turned off in Settings).</div>
       )}
       {data.enabled && data.cache && !data.cache.fresh && (
         <div style={{ color: AMBER, fontFamily: MONO, fontSize: 10, marginTop: 10 }}>
           Live market data is not ready ({data.cache.connected ? `loading history ${data.cache.backfilled}/${data.cache.backfillTarget}` : "not connected"}){data.cache.lastError ? ` · ${data.cache.lastError}` : ""}. Scans wait until it is.
         </div>
       )}
+      {data.mode === "sentinel" ? null : <>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14 }}>
         <Stat label="SCANS" big={s.scans} sub={data.mode === "direct" ? `${s.direct?.calls || 0} coin checks${s.errors ? ` · ${s.errors} failed` : ""}` : `${s.proposed} proposed · ${s.none} nothing${s.errors ? ` · ${s.errors} failed` : ""}`} />
         <Stat label={data.mode === "direct" ? "FABLE'S CALLS" : "JUDGE"} big={data.mode === "direct" ? `${(s.direct?.buy || 0) + (s.direct?.sell || 0)} trades` : `${s.agree} yes`} color={GREEN} sub={data.mode === "direct" ? `${s.direct?.buy || 0} buy · ${s.direct?.sell || 0} sell · ${s.direct?.skip || 0} skip` : `${s.disagree} skip · ${s.flip} flipped`} />
@@ -120,6 +123,7 @@ export default function EmmanuelReview() {
           );
         })}
       </div>
+      </>}
     </div>
   );
 }
