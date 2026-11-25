@@ -30,7 +30,7 @@ const colorOf = (k) => COLORS[k] || "#8b949e";
 const tint = (k) => ({
   background: [
     `linear-gradient(90deg, #0d1117f2 0%, #0d1117d9 38%, #0d111780 100%)`,
-    `url(/angels/${k}.png) right center / auto 150% no-repeat`,
+    `url(/angels/${k}-bg.png) right center / auto 100% no-repeat`,
     `linear-gradient(135deg, ${colorOf(k)}3d 0%, ${colorOf(k)}1c 42%, #0d1117 75%)`,
   ].join(", "),
   border: `1px solid ${colorOf(k)}66`,
