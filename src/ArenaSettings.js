@@ -334,7 +334,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
         const btcMargin = Number.isFinite(lev) && lev > 0 ? Math.max(margin || 0, Math.ceil((105 / lev) * 100) / 100) : null;
         const listId = `models-${k}`;
         return (
-          <div key={k} style={{ ...card, borderLeft: `3px solid ${c}` }}>
+          <div key={k} style={{ ...card, borderLeft: `3px solid ${c}`, background: `linear-gradient(90deg, #0d1117f2 0%, #0d1117e6 45%, #0d111799 100%), url(/angels/${k}.png) right top / 220px auto no-repeat, #0d1117` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <AngelIcon k={k} size={30} />
