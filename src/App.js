@@ -430,9 +430,9 @@ export default function FXAngel() {
   const [historyPeriod, setHistoryPeriod] = useState("ALL"); // DAY | WEEK | MONTH | ALL | CUSTOM
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [historyCoin, setHistoryCoin] = useState("ALL"); // ALL | a pair such as BTC/USD
+  const [historyCoins, setHistoryCoins] = useState([]); // empty = all coins; otherwise the selected pairs such as BTC/USD
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [historyModel, setHistoryModel] = useState("ALL"); // ALL | baseline | claude | grok | gemini | openai
+  const [historyModels, setHistoryModels] = useState([]); // empty = all Angels; otherwise the selected keys (baseline, claude, grok ...)
   const [accurate, setAccurate] = useState(null); // { baseline: [...], models: [...] } straight from Binance / the arena
   const [peaksSlOnly, setPeaksSlOnly] = useState(false);
   const [peaksSort, setPeaksSort] = useState("newest"); // newest | giveback | peak
@@ -861,7 +861,7 @@ export default function FXAngel() {
                 qty: t.qty, leverage: t.leverage, margin: t.margin, notional: t.notional,
               }));
               allTrades = [...allTrades, ...modelTrades].sort((a, b) => new Date(b.closeTime || 0) - new Date(a.closeTime || 0));
-              if (historyModel !== "ALL") allTrades = allTrades.filter(t => t.model === historyModel);
+              if (historyModels.length) allTrades = allTrades.filter(t => historyModels.includes(t.model));
 
               // Period filter
               const now = new Date();
@@ -887,8 +887,9 @@ export default function FXAngel() {
               const coinCount = {};
               for (const t of byClass) if (t.pair) coinCount[t.pair] = (coinCount[t.pair] || 0) + 1;
               const coinList = Object.keys(coinCount).sort((a, b) => coinCount[b] - coinCount[a] || a.localeCompare(b));
-              const coinSel = coinCount[historyCoin] ? historyCoin : "ALL";
-              const filtered = coinSel === "ALL" ? byClass : byClass.filter(t => t.pair === coinSel);
+              const coinSelList = historyCoins.filter(c => coinCount[c]);       // selected coins that exist in the current selection
+              const filtered = coinSelList.length ? byClass.filter(t => coinSelList.includes(t.pair)) : byClass;
+              const toggle = (list, setList, v) => setList(list.includes(v) ? list.filter(x => x !== v) : [...list, v]);
               const totalPnl = filtered.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
               const wins = filtered.filter(t => parseFloat(t.pnl) > 0).length;
               const losses = filtered.filter(t => parseFloat(t.pnl) < 0).length;
@@ -899,16 +900,19 @@ export default function FXAngel() {
                 <>
                   {/* AI model selector */}
                   <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-                    {[["ALL", "All models"], ...Object.entries(MODEL_NAMES)].map(([id, label]) => (
-                      <button key={id} onClick={() => setHistoryModel(id)} style={{
+                    {[["ALL", "All models"], ...Object.entries(MODEL_NAMES)].map(([id, label]) => {
+                      const on = id === "ALL" ? historyModels.length === 0 : historyModels.includes(id);
+                      return (
+                      <button key={id} onClick={() => (id === "ALL" ? setHistoryModels([]) : toggle(historyModels, setHistoryModels, id))} style={{
                         flex: "1 1 30%", padding: "7px 4px",
-                        background: historyModel === id ? "#a371f720" : "#0d1117",
-                        border: `1px solid ${historyModel === id ? "#a371f7" : "#21262d"}`,
-                        borderRadius: 10, color: historyModel === id ? "#a371f7" : "#8b949e",
+                        background: on ? "#a371f720" : "#0d1117",
+                        border: `1px solid ${on ? "#a371f7" : "#21262d"}`,
+                        borderRadius: 10, color: on ? "#a371f7" : "#8b949e",
                         fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, cursor: "pointer",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                       }}><AngelIcon k={id} size={18} />{label}</button>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div style={{ color: "#5a6573", fontSize: 8, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>
                     {accurate?.baseline ? "Crypto figures since the arena started come from Binance, fees included (BNFCR counted as $1)." : (accurate?.loading ? "Loading Binance figures… (first load can take a minute; it updates by itself)" : "Binance figures unavailable — showing the app's own log (may be inaccurate).")}
@@ -936,15 +940,18 @@ export default function FXAngel() {
                   {/* Coin selector */}
                   {coinList.length > 1 && (
                     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-                      {["ALL", ...coinList].map(c => (
-                        <button key={c} onClick={() => setHistoryCoin(c)} style={{
+                      {["ALL", ...coinList].map(c => {
+                        const on = c === "ALL" ? coinSelList.length === 0 : coinSelList.includes(c);
+                        return (
+                        <button key={c} onClick={() => (c === "ALL" ? setHistoryCoins([]) : toggle(historyCoins, setHistoryCoins, c))} style={{
                           padding: "6px 9px",
-                          background: coinSel === c ? "#ffa50220" : "#0d1117",
-                          border: `1px solid ${coinSel === c ? "#ffa502" : "#21262d"}`,
-                          borderRadius: 10, color: coinSel === c ? "#ffa502" : "#8b949e",
+                          background: on ? "#ffa50220" : "#0d1117",
+                          border: `1px solid ${on ? "#ffa502" : "#21262d"}`,
+                          borderRadius: 10, color: on ? "#ffa502" : "#8b949e",
                           fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, cursor: "pointer",
                         }}>{c === "ALL" ? "All coins" : `${c.replace("/USD", "")} · ${coinCount[c]}`}</button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1035,7 +1042,7 @@ export default function FXAngel() {
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                     <button disabled={pdfBusy || filtered.length === 0} onClick={() => {
                       const periodText = { DAY: "Today", WEEK: "Last 7 days", MONTH: "Last 30 days", ALL: "All time", CUSTOM: `${customFrom || "start"} to ${customTo || "today"}` }[historyPeriod];
-                      const subtitle = `Model: ${historyModel === "ALL" ? "All models" : MODEL_NAMES[historyModel] || historyModel} | Period: ${periodText} | Class: ${historyFilter === "ALL" ? "All" : historyFilter === "FX" ? "FX" : "Crypto"} | Coin: ${coinSel === "ALL" ? "All" : coinSel}`;
+                      const subtitle = `Model: ${historyModels.length ? historyModels.map(k => MODEL_NAMES[k] || k).join(", ") : "All models"} | Period: ${periodText} | Class: ${historyFilter === "ALL" ? "All" : historyFilter === "FX" ? "FX" : "Crypto"} | Coin: ${coinSelList.length ? coinSelList.map(c => c.replace("/USD", "")).join(", ") : "All"}`;
                       downloadSelectionPDF(filtered.map(t => ({ account: MODEL_NAMES[t.model] || t.model, pair: t.pair, direction: t.direction, entry: t.entry, close: t.closePrice, pnl: t.pnl, reason: t.reason, closeTime: t.closeTime || t.loggedAt })), subtitle, setPdfBusy);
                     }} style={{
                       flex: 1, padding: "10px 6px", background: "#00e5a015",
