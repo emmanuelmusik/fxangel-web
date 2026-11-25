@@ -51,6 +51,9 @@ const btn = (color, solid) => ({
   background: solid ? color : `${color}15`, border: `1px solid ${solid ? color : color + "50"}`, color: solid ? "#010409" : color,
 });
 
+// minutes after 00:00 UTC <-> "HH:MM" in GMT+1
+const utcMinToG = (m) => { const x = (m + 60) % 1440; return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
+const gToUtcMin = (t) => { const [h, m] = String(t).split(":").map(Number); return Number.isFinite(h) && Number.isFinite(m) ? ((h * 60 + m - 60) % 1440 + 1440) % 1440 : NaN; };
 const hh = (h) => String(((h % 24) + 24) % 24).padStart(2, "0") + ":00";
 
 function toForm(d) {
@@ -91,6 +94,8 @@ function toForm(d) {
     sunday: !!g.sundayBlock,
     compact: !!g.compactSnapshot,
     baseLossPair: String(g.baselinePairLossPct ?? 100), baseLossAcct: String(g.baselineAccountLossPct ?? 0),
+    closeOn: g.autoCloseUtcMin != null, closeAt: utcMinToG(g.autoCloseUtcMin ?? 840),   // default shown: 15:00 GMT+1
+    emailAt: utcMinToG(g.dailyEmailUtcMin ?? 1320),
     pairs: [...g.arenaPairs],
   };
 }
@@ -226,6 +231,12 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
       const n = parseFloat(form[fk]);
       if (n !== (g[gk] ?? dflt)) patch.global[gk] = Number.isFinite(n) ? n : form[fk];
     }
+    const curClose = g.autoCloseUtcMin ?? null, newClose = form.closeOn ? gToUtcMin(form.closeAt) : null;
+    if (form.closeOn && !Number.isFinite(newClose)) throw new Error("Choose a valid close time");
+    if (newClose !== curClose) patch.global.autoCloseUtcMin = newClose;
+    const newEmail = gToUtcMin(form.emailAt);
+    if (!Number.isFinite(newEmail)) throw new Error("Choose a valid email time");
+    if (newEmail !== (g.dailyEmailUtcMin ?? 1320)) patch.global.dailyEmailUtcMin = newEmail;
     const a = [...form.pairs].sort().join(","), b = [...g.arenaPairs].sort().join(",");
     if (a !== b) patch.global.arenaPairs = form.pairs;
     return patch;
@@ -237,7 +248,8 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
       setMsg({ ok: false, text: "Start and end hour are the same. Tick 'Allow all day' or pick different hours." });
       return;
     }
-    const patch = patchOverride || buildPatch();
+    let patch;
+    try { patch = patchOverride || buildPatch(); } catch (e) { setMsg({ ok: false, text: e.message }); return; }
     if (!Object.keys(patch.models || {}).length && !Object.keys(patch.global || {}).length && !Object.keys(patch.baseline || {}).length) {
       setMsg({ ok: true, text: "Nothing changed." }); return;
     }
@@ -543,8 +555,25 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
           <input type="checkbox" checked={form.sunday} onChange={(e) => setForm((s) => ({ ...s, sunday: e.target.checked }))} />
           Block Sundays
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#fff", fontFamily: MONO, fontSize: 11, margin: "14px 0 8px", cursor: "pointer" }}>
+          <input type="checkbox" checked={form.closeOn} onChange={(e) => setForm((s) => ({ ...s, closeOn: e.target.checked }))} />
+          Close ALL open trades every day (Angels and Sentinel)
+        </label>
+        {form.closeOn && (
+          <div style={{ marginBottom: 6 }}>
+            <div style={label}>CLOSE ALL AT (GMT+1)</div>
+            <input type="time" style={input} value={form.closeAt} onChange={(e) => setForm((s) => ({ ...s, closeAt: e.target.value }))} />
+            <div style={{ color: AMBER, fontSize: 9, fontFamily: MONO, marginTop: 4, lineHeight: 1.6 }}>
+              Everything open is closed at market at this time. If the time is inside the entry window, new trades can still open afterwards.
+            </div>
+          </div>
+        )}
+        <div style={{ marginTop: 10 }}>
+          <div style={label}>DAILY EMAIL SENT AT (GMT+1)</div>
+          <input type="time" style={input} value={form.emailAt} onChange={(e) => setForm((s) => ({ ...s, emailAt: e.target.value }))} />
+        </div>
         <div style={{ color: "#5a6573", fontSize: 9, fontFamily: MONO, marginTop: 8 }}>
-          High-impact news pauses (±60 min) are fixed. Open trades are never closed by the window.
+          High-impact news pauses (±60 min) are fixed. Open trades are not closed by the entry window (only by the close-all time above, if on).
         </div>
       </div>
 
