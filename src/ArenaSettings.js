@@ -12,8 +12,8 @@ const AMBER = "#ffa502";
 const PURPLE = "#a371f7";
 const PW_KEY = "fxangel_settings_pw";
 
-const MODEL_ORDER = ["claude", "grok", "gemini", "openai", "emmanuel"];
-const MODEL_COLORS = { claude: "#e8a05a", grok: "#c9d1d9", gemini: "#6ea8ff", openai: "#b583ff", emmanuel: "#f5c542" };
+const MODEL_ORDER = ["claude", "grok", "gemini", "openai", "emmanuel", "enoch"];
+const MODEL_COLORS = { claude: "#e8a05a", grok: "#c9d1d9", gemini: "#6ea8ff", openai: "#b583ff", emmanuel: "#f5c542", enoch: "#58d68d" };
 const MODEL_SUGGESTIONS = {
   anthropic: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
   xai: ["grok-4-fast"],

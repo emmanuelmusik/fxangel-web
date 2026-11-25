@@ -31,7 +31,7 @@ const tint = (k) => ({
   border: `1px solid ${colorOf(k)}66`,
   borderLeft: `4px solid ${colorOf(k)}`,
 });
-const ORDER = ["claude", "grok", "gemini", "openai", "emmanuel", "baseline"];
+const ORDER = ["claude", "grok", "gemini", "openai", "emmanuel", "enoch", "baseline"];
 const REFRESH_MS = 15000;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
