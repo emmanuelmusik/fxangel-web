@@ -1087,8 +1087,8 @@ export default function FXAngel() {
                                 <span style={{ color: accentColor, fontSize: 8, fontFamily: "'Space Mono', monospace", background: `${accentColor}15`, padding: "2px 5px", borderRadius: 4 }}>
                                   {isFX ? "💱 FX" : "🪙 CRYPTO"}
                                 </span>
-                                <span style={{ color: "#a371f7", fontSize: 8, fontFamily: "'Space Mono', monospace", background: "#a371f715", padding: "2px 5px", borderRadius: 4 }}>
-                                  {MODEL_NAMES[t.model] || t.model}
+                                <span style={{ color: "#a371f7", fontSize: 8, fontFamily: "'Space Mono', monospace", background: "#a371f715", padding: "2px 6px 2px 3px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <AngelIcon k={t.model} size={14} />{MODEL_NAMES[t.model] || t.model}
                                 </span>
                               </div>
                               <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
@@ -1265,7 +1265,7 @@ export default function FXAngel() {
                                   {t.direction === "BUY" ? "🟢" : "🔴"} {t.direction}
                                 </span>
                                 <span style={{ color: "#fff", fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700 }}>{t.pair}</span>
-                                <span style={{ color: PEAK_COLORS[t.who] || "#8b949e", fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700 }}>{PEAK_NAMES[t.who] || ""}</span>
+                                <span style={{ color: PEAK_COLORS[t.who] || "#8b949e", fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><AngelIcon k={t.who} size={14} />{PEAK_NAMES[t.who] || ""}</span>
                               </div>
                               <span style={{ color: isProfit ? "#00e5a0" : "#ff4757", fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>
                                 {isProfit ? "+" : ""}{t.pnl}

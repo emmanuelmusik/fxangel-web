@@ -662,7 +662,7 @@ function Trades({ trades, reasons, filter }) {
                 <div style={{ color: pnlColor(t.pnl), fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{money(t.pnl)}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#8b949e", fontSize: 11, marginTop: 6 }}>
-                <span>{nameOf(t.account, t.label)} · {dayTime(t.closeTime)}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AngelIcon k={t.account} size={16} />{nameOf(t.account, t.label)} · {dayTime(t.closeTime)}</span>
                 <span>{t.reason || ""}</span>
               </div>
               <PeakBar t={t} />
