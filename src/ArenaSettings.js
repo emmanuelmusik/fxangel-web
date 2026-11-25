@@ -27,6 +27,8 @@ const NUM_FIELDS = [
   ["slMaxPct", "SL max (%)"],
   ["tpMinPct", "TP min (%)"],
   ["tpMaxPct", "TP max (%)"],
+  ["pairLossPct", "Pair daily loss stop (% of margin)"],
+  ["accountLossPct", "Account daily loss stop (% of balance, 0 = off)"],
 ];
 
 const BASE_ORDER = ["BTCUSDT", "ETHUSDT", "DOGEUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "AVAXUSDT"];
@@ -61,6 +63,7 @@ function toForm(d) {
       marginUsd: String(m.marginUsd), leverage: String(m.leverage),
       slMinPct: String(m.slMinPct), slMaxPct: String(m.slMaxPct),
       tpMinPct: String(m.tpMinPct), tpMaxPct: String(m.tpMaxPct),
+      pairLossPct: String(m.pairLossPct ?? 100), accountLossPct: String(m.accountLossPct ?? 0),
     };
   }
   const baseline = {};
@@ -248,7 +251,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
 
   const resetModel = (k) => {
     if (!window.confirm(`Reset ${data.models[k].label} to its default settings?`)) return;
-    save({ models: { [k]: { enabled: null, modelId: null, marginUsd: null, leverage: null, slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null, pairs: null } }, global: {} });
+    save({ models: { [k]: { enabled: null, modelId: null, marginUsd: null, leverage: null, slMinPct: null, slMaxPct: null, tpMinPct: null, tpMaxPct: null, pairLossPct: null, accountLossPct: null, pairs: null } }, global: {} });
   };
 
   const resetBase = (sym) => {
@@ -360,6 +363,7 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
                 const isSl = name.startsWith("sl"), isTp = name.startsWith("tp");
                 const pct = parseFloat(f[name]);
                 const usd = (isSl || isTp) && notional != null && Number.isFinite(pct) ? notional * pct / 100 : null;
+                const pairStop = name === "pairLossPct" && Number.isFinite(margin) && Number.isFinite(pct) ? margin * pct / 100 : null;
                 return (
                   <div key={name}>
                     <div style={label}>{text.toUpperCase()}{name === "leverage" ? ` · MAX ${levMax}` : ""}</div>
@@ -370,6 +374,16 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
                     {usd != null && (
                       <div style={{ color: isSl ? "#f85149" : GREEN, fontSize: 10, fontFamily: MONO, marginTop: 4 }}>
                         {isSl ? "≈ -" : "≈ +"}${usd.toFixed(usd < 0.1 ? 3 : 2)}
+                      </div>
+                    )}
+                    {pairStop != null && (
+                      <div style={{ color: "#f85149", fontSize: 10, fontFamily: MONO, marginTop: 4 }}>
+                        a pair stops for the day after -${pairStop.toFixed(2)} net
+                      </div>
+                    )}
+                    {name === "accountLossPct" && (
+                      <div style={{ color: "#8b949e", fontSize: 10, fontFamily: MONO, marginTop: 4 }}>
+                        {parseFloat(f[name]) > 0 ? "all pairs stop for the day at this share of the start-of-day balance" : "off"}
                       </div>
                     )}
                   </div>
