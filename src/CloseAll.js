@@ -17,6 +17,8 @@ export default function CloseAll({ open, onDone }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);       // { ok, text }
   const [results, setResults] = useState(null);
+  const [when, setWhen] = useState("15:00");     // GMT+1, same as Settings
+  const [sched, setSched] = useState(null);      // ms timestamp of a pending one-off scheduled close
 
   useEffect(() => {
     if (!show) return undefined;
@@ -25,7 +27,12 @@ export default function CloseAll({ open, onDone }) {
     return () => window.removeEventListener("keydown", h);
   }, [show, busy]);
 
-  if (!open.length) return null;
+  useEffect(() => {
+    if (!show) return;
+    fetch(`${BASE}/api/arena/close-all/schedule`).then((r) => r.json()).then((b) => setSched(b.atMs ?? null)).catch(() => {});
+  }, [show]);
+
+  if (!open.length && !sched) return null;
 
   const total = open.reduce((s, p) => s + (typeof p.unrealizedPnl === "number" ? p.unrealizedPnl : 0), 0);
   const close = () => { if (!busy) { setShow(false); setPw(""); setMsg(null); setResults(null); } };
@@ -47,6 +54,27 @@ export default function CloseAll({ open, onDone }) {
     } catch {
       setMsg({ ok: false, text: "Could not reach the server. Nothing was changed that I can confirm: check Binance before trying again." });
     }
+    setBusy(false);
+  };
+
+  // next occurrence of HH:MM in GMT+1, as a UTC timestamp
+  const nextAt = () => {
+    const [h, m] = when.split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+    const now = new Date();
+    let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, h * 60 + m - 60);
+    if (t < Date.now() + 60000) t += 86400000;
+    return t;
+  };
+  const fmt = (ms) => new Date(ms).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Etc/GMT-1" }) + " (GMT+1)";
+  const setSchedule = async (atMs) => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch(`${BASE}/api/arena/close-all/schedule`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw, atMs }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) setMsg({ ok: false, text: body.error || `Server said ${res.status}` });
+      else { setSched(body.atMs ?? null); setMsg({ ok: true, text: body.atMs ? `Scheduled: everything open will be closed at ${fmt(body.atMs)}.` : "Scheduled close cancelled." }); }
+    } catch { setMsg({ ok: false, text: "Could not reach the server." }); }
     setBusy(false);
   };
 
@@ -87,11 +115,26 @@ export default function CloseAll({ open, onDone }) {
                   onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && pw && !busy && go()}
                   style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "#010409", border: "1px solid #30363d", borderRadius: 8, color: "#fff", fontFamily: MONO, fontSize: 13 }}
                 />
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #21262d" }}>
+                  <div style={{ color: MUTED, fontSize: 10, fontFamily: MONO, marginBottom: 6 }}>OR CLOSE EVERYTHING AT A CHOSEN TIME (GMT+1)</div>
+                  {sched ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: MONO, fontSize: 11, color: "#cdd9e5" }}>
+                      <span>Scheduled for {fmt(sched)}</span>
+                      <button onClick={() => setSchedule(null)} disabled={busy || !pw} style={{ background: "transparent", color: RED, border: `1px solid ${RED}66`, borderRadius: 8, padding: "6px 10px", fontFamily: MONO, fontSize: 10, cursor: "pointer", opacity: busy || !pw ? 0.55 : 1 }}>Cancel it</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input type="time" value={when} onChange={(e) => setWhen(e.target.value)} style={{ flex: 1, boxSizing: "border-box", padding: "9px 10px", background: "#010409", border: "1px solid #30363d", borderRadius: 8, color: "#fff", fontFamily: MONO, fontSize: 12, colorScheme: "dark" }} />
+                      <button onClick={() => { const t = nextAt(); if (Number.isFinite(t)) setSchedule(t); }} disabled={busy || !pw} style={{ flex: 1, background: "transparent", color: GREEN, border: `1px solid ${GREEN}66`, borderRadius: 8, padding: "9px", fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: busy || !pw ? 0.55 : 1 }}>Schedule close</button>
+                    </div>
+                  )}
+                  <div style={{ color: "#5a6573", fontSize: 9, fontFamily: MONO, marginTop: 6, lineHeight: 1.5 }}>Enter the password above first. Happens once, at the next time the clock shows this. For a repeating daily close, use Settings.</div>
+                </div>
                 {msg && <div style={{ color: msg.ok ? GREEN : RED, fontFamily: MONO, fontSize: 10, marginTop: 8, lineHeight: 1.5 }}>{msg.text}</div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                   <button onClick={close} disabled={busy} style={{ flex: 1, background: "transparent", color: MUTED, border: "1px solid #30363d", borderRadius: 8, padding: "11px", fontFamily: MONO, fontSize: 11, cursor: "pointer" }}>Cancel</button>
-                  <button onClick={go} disabled={busy || !pw} style={{ flex: 1.4, background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "11px", fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: busy || !pw ? "default" : "pointer", opacity: busy || !pw ? 0.55 : 1 }}>
-                    {busy ? "Closing… (can take a few seconds)" : `Close ${open.length} trade${open.length === 1 ? "" : "s"} now`}
+                  <button onClick={go} disabled={busy || !pw || !open.length} style={{ flex: 1.4, background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "11px", fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: busy || !pw ? "default" : "pointer", opacity: busy || !pw ? 0.55 : 1 }}>
+                    {busy ? "Working…" : `Close ${open.length} trade${open.length === 1 ? "" : "s"} now`}
                   </button>
                 </div>
               </>
