@@ -90,6 +90,7 @@ function toForm(d) {
     untilG: ((g.entryUntilUtc + 1 - 1) % 24) + 1,     // GMT+1 hour entries stop (1-24)
     sunday: !!g.sundayBlock,
     compact: !!g.compactSnapshot,
+    baseLossPair: String(g.baselinePairLossPct ?? 100), baseLossAcct: String(g.baselineAccountLossPct ?? 0),
     pairs: [...g.arenaPairs],
   };
 }
@@ -221,6 +222,10 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
     if (until !== g.entryUntilUtc) patch.global.entryUntilUtc = until;
     if (form.sunday !== g.sundayBlock) patch.global.sundayBlock = form.sunday;
     if (form.compact !== !!g.compactSnapshot) patch.global.compactSnapshot = form.compact;
+    for (const [fk, gk, dflt] of [["baseLossPair", "baselinePairLossPct", 100], ["baseLossAcct", "baselineAccountLossPct", 0]]) {
+      const n = parseFloat(form[fk]);
+      if (n !== (g[gk] ?? dflt)) patch.global[gk] = Number.isFinite(n) ? n : form[fk];
+    }
     const a = [...form.pairs].sort().join(","), b = [...g.arenaPairs].sort().join(",");
     if (a !== b) patch.global.arenaPairs = form.pairs;
     return patch;
@@ -424,6 +429,22 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
         {baseOpen && (
           <div style={{ color: "#8b949e", fontSize: 9, fontFamily: MONO, margin: "8px 0 4px", lineHeight: 1.6 }}>
             Rules for the main-account bot, per coin. SL and TP are either fixed dollars on the position or a fixed % of price (then the dollars grow with the size, like the AI models). New values apply from the next baseline trade; open trades keep the stop and target already on Binance.
+          </div>
+        )}
+        {baseOpen && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "8px 0 4px" }}>
+            <div>
+              <div style={label}>PAIR DAILY LOSS STOP (% OF MARGIN)</div>
+              <input style={input} inputMode="decimal" value={form.baseLossPair} onChange={(e) => setForm((s) => ({ ...s, baseLossPair: e.target.value }))} />
+              <div style={{ color: "#8b949e", fontSize: 10, fontFamily: MONO, marginTop: 4 }}>a coin stops for the day after losing this share of its margin (100 = the full margin)</div>
+            </div>
+            <div>
+              <div style={label}>ACCOUNT DAILY LOSS STOP (% OF BALANCE, 0 = OFF)</div>
+              <input style={input} inputMode="decimal" value={form.baseLossAcct} onChange={(e) => setForm((s) => ({ ...s, baseLossAcct: e.target.value }))} />
+              <div style={{ color: "#8b949e", fontSize: 10, fontFamily: MONO, marginTop: 4 }}>
+                {parseFloat(form.baseLossAcct) > 0 ? "Sentinel stops all coins for the day at this share of the start-of-day balance" : "off"}
+              </div>
+            </div>
           </div>
         )}
         {baseOpen && BASE_ORDER.map((sym) => {
