@@ -364,8 +364,10 @@ function LeagueTable({ rows, trades }) {
               <tr key={r.account} style={{ borderBottom: "1px solid #161b22" }}>
                 <td style={{ ...td, ...stick, textAlign: "left", paddingLeft: 12 }}>
                   <span style={{ color: "#8b949e", marginRight: 8, display: "inline-block", width: 14 }}>{i + 1}</span>
-                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: colorOf(r.account), marginRight: 7 }} />
-                  <span style={{ color: "#fff", fontWeight: 700 }}>{r.label}</span>
+                  {hasAngelIcon(r.account)
+                    ? <AngelIcon k={r.account} size={24} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 8 }} />
+                    : <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: colorOf(r.account), marginRight: 7 }} />}
+                  <span style={{ color: "#fff", fontWeight: 700, verticalAlign: "middle" }}>{r.label}</span>
                 </td>
                 <td style={td}>{r.p}</td>
                 <td style={{ ...td, color: r.w ? GREEN : "#484f58" }}>{r.w}</td>
@@ -524,7 +526,9 @@ function EquityChart({ series, start }) {
               gap: 5,
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: hidden[s.account] ? "#30363d" : colorOf(s.account) }} />
+            {hasAngelIcon(s.account)
+              ? <AngelIcon k={s.account} size={18} style={{ opacity: hidden[s.account] ? 0.35 : 1 }} />
+              : <span style={{ width: 7, height: 7, borderRadius: "50%", background: hidden[s.account] ? "#30363d" : colorOf(s.account) }} />}
             {s.label}
             <span style={{ color: hidden[s.account] ? "#484f58" : pnlColor(s.final) }}>{money(s.final, 0)}</span>
           </button>
