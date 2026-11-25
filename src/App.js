@@ -8,97 +8,23 @@ import PeakReach from "./PeakReach";
 // Backend URL — deployed on Railway
 const API_BASE = "https://fxangel-backend-production.up.railway.app";
 
-// ─── PDF DOWNLOAD ─────────────────────────────────
-// Loads jsPDF from CDN and generates a trade history report
-async function downloadHistoryPDF(historyData, filter = "ALL") {
-  if (!window.jspdf) {
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  const { jsPDF } = window.jspdf;
-  const allTrades = historyData?.trades || [];
-  const trades = filter === "ALL" ? allTrades : allTrades.filter(t => t.assetClass === filter);
-
-  const totalPnl = trades.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
-  const wins = trades.filter(t => parseFloat(t.pnl) > 0).length;
-  const losses = trades.filter(t => parseFloat(t.pnl) < 0).length;
-  const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : 0;
-  const title = filter === "ALL" ? "All Trades" : filter === "FX" ? "FX Trades" : "Crypto Trades";
-
-  const doc = new jsPDF();
-
-  // Header
-  doc.setFontSize(18);
-  doc.setTextColor(255, 71, 87);
-  doc.text(`FXAngel — ${title} Report`, 14, 18);
-  doc.setFontSize(9);
-  doc.setTextColor(100);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25);
-
-  // Summary stats
-  doc.setFontSize(11);
-  doc.setTextColor(0);
-  doc.text(`Total P&L: $${totalPnl.toFixed(2)}`, 14, 35);
-  doc.text(`Win Rate: ${winRate}%`, 70, 35);
-  doc.text(`W/L: ${wins}/${losses}`, 130, 35);
-  doc.text(`Total: ${trades.length} trades`, 14, 42);
-
-  if (trades.length === 0) {
-    doc.setFontSize(12);
-    doc.setTextColor(150);
-    doc.text(`No ${title.toLowerCase()} recorded yet.`, 14, 60);
-    doc.save(`FXAngel_${filter}_${new Date().toISOString().slice(0, 10)}.pdf`);
-    return;
-  }
-
-  // Table header
-  let y = 54;
-  doc.setFillColor(255, 71, 87);
-  doc.rect(14, y - 5, 182, 7, "F");
-  doc.setTextColor(255);
-  doc.setFontSize(8);
-  doc.text("Date", 16, y);
-  doc.text("Pair", 50, y);
-  doc.text("Dir", 78, y);
-  doc.text("Entry", 95, y);
-  doc.text("Close", 120, y);
-  doc.text("PnL ($)", 150, y);
-  doc.text("Reason", 170, y);
-
-  // Table rows
-  y += 8;
-  trades.forEach((t, idx) => {
-    if (y > 280) { doc.addPage(); y = 20; }
-    if (idx % 2 === 0) {
-      doc.setFillColor(245, 245, 245);
-      doc.rect(14, y - 4, 182, 6, "F");
-    }
-    const pnl = parseFloat(t.pnl);
-    const date = new Date(t.closeTime).toLocaleDateString();
-    doc.setTextColor(60);
-    doc.text(date, 16, y);
-    doc.text(`${t.pair}`.slice(0, 10), 50, y);
-    doc.text(t.direction, 78, y);
-    doc.text(`${t.entry ?? "-"}`, 95, y);
-    doc.text(`${t.closePrice ?? "-"}`, 120, y);
-    doc.setTextColor(pnl >= 0 ? 0 : 200, pnl >= 0 ? 150 : 40, pnl >= 0 ? 80 : 50);
-    doc.text(`${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`, 150, y);
-    doc.setTextColor(120);
-    doc.text(`${t.reason ?? ""}`.slice(0, 14), 170, y);
-    y += 7;
-  });
-
-  doc.save(`FXAngel_${filter}_${new Date().toISOString().slice(0, 10)}.pdf`);
+// History PDF: built by the backend with the same layout as the daily email report; contains only the trades passed in
+async function downloadSelectionPDF(trades, subtitle, setBusy) {
+  setBusy(true);
+  try {
+    const r = await fetch(`${API_BASE}/api/report-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trades, title: "HISTORY REPORT", subtitle }) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a");
+    a.href = url; a.download = `FXAngel_History_${new Date().toISOString().slice(0, 10)}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) { alert(`Could not build the PDF (${e.message}). Try again in a moment.`); }
+  setBusy(false);
 }
 
 // ─── PEAKS / GIVE-BACK PDF ────────────────────────
-// Same lazy-load pattern as downloadHistoryPDF. Reports how far each
+// Lazy-loads jsPDF from the CDN. Reports how far each
 // crypto trade ran in its favor (peak) before it actually closed.
 async function downloadPeaksPDF(historyData, slOnly = false) {
   if (!window.jspdf) {
@@ -504,6 +430,7 @@ export default function FXAngel() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [historyCoin, setHistoryCoin] = useState("ALL"); // ALL | a pair such as BTC/USD
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [historyModel, setHistoryModel] = useState("ALL"); // ALL | baseline | claude | grok | gemini | openai
   const [accurate, setAccurate] = useState(null); // { baseline: [...], models: [...] } straight from Binance / the arena
   const [peaksSlOnly, setPeaksSlOnly] = useState(false);
@@ -1102,23 +1029,17 @@ export default function FXAngel() {
                     </div>
                   </div>
 
-                  {/* Download buttons */}
+                  {/* Download: the PDF holds exactly what is selected above (model, period, class, coin) */}
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                    <button onClick={() => downloadHistoryPDF(scoped, "FX")} style={{
-                      flex: 1, padding: "8px 6px", background: "#00e5a015",
-                      border: "1px solid #00e5a040", borderRadius: 10, color: "#00e5a0",
-                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>📄 FX PDF</button>
-                    <button onClick={() => downloadHistoryPDF(scoped, "CRYPTO")} style={{
-                      flex: 1, padding: "8px 6px", background: "#ffa50215",
-                      border: "1px solid #ffa50240", borderRadius: 10, color: "#ffa502",
-                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>📄 Crypto PDF</button>
-                    <button onClick={() => downloadHistoryPDF(scoped, "ALL")} style={{
-                      flex: 1, padding: "8px 6px", background: "#ffffff10",
-                      border: "1px solid #ffffff20", borderRadius: 10, color: "#fff",
-                      fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>📄 All PDF</button>
+                    <button disabled={pdfBusy || filtered.length === 0} onClick={() => {
+                      const periodText = { DAY: "Today", WEEK: "Last 7 days", MONTH: "Last 30 days", ALL: "All time", CUSTOM: `${customFrom || "start"} to ${customTo || "today"}` }[historyPeriod];
+                      const subtitle = `Model: ${historyModel === "ALL" ? "All models" : MODEL_NAMES[historyModel] || historyModel} | Period: ${periodText} | Class: ${historyFilter === "ALL" ? "All" : historyFilter === "FX" ? "FX" : "Crypto"} | Coin: ${coinSel === "ALL" ? "All" : coinSel}`;
+                      downloadSelectionPDF(filtered.map(t => ({ account: MODEL_NAMES[t.model] || t.model, pair: t.pair, direction: t.direction, entry: t.entry, close: t.closePrice, pnl: t.pnl, reason: t.reason, closeTime: t.closeTime || t.loggedAt })), subtitle, setPdfBusy);
+                    }} style={{
+                      flex: 1, padding: "10px 6px", background: "#00e5a015",
+                      border: "1px solid #00e5a040", borderRadius: 10, color: "#00e5a0", opacity: filtered.length === 0 ? 0.5 : 1,
+                      fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    }}>{pdfBusy ? "Building PDF…" : `📄 Download PDF of this selection (${filtered.length})`}</button>
                   </div>
 
                   {/* Cache controls */}
