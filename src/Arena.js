@@ -3,6 +3,7 @@ import ArenaCharts, { startOf, nextStart, prevStart, longLabel, SHIFT, nameOf } 
 import PeakReach, { PeakBar } from "./PeakReach";
 import SlTpLab from "./SlTpLab";
 import CloseAll from "./CloseAll";
+import AngelIcon, { hasAngelIcon } from "./AngelIcon";
 import FableReview from "./FableReview";
 import EmmanuelReview from "./EmmanuelReview";
 
@@ -117,7 +118,9 @@ function Pill({ children, color, solid }) {
 function ModelTag({ k, label, big }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: big ? 8 : 6 }}>
-      <span style={{ width: big ? 10 : 8, height: big ? 10 : 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />
+      {hasAngelIcon(k)
+        ? <AngelIcon k={k} size={big ? 30 : 20} />
+        : <span style={{ width: big ? 10 : 8, height: big ? 10 : 8, borderRadius: "50%", background: colorOf(k), flexShrink: 0 }} />}
       <span style={{ color: colorOf(k), fontSize: big ? 16 : 12, fontWeight: big ? 800 : 700, letterSpacing: big ? 0.3 : 0 }}>{nameOf(k, label)}</span>
     </span>
   );

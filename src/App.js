@@ -1,4 +1,5 @@
 import React from "react";
+import AngelIcon from "./AngelIcon";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Arena from "./Arena";
 import ArenaSettings from "./ArenaSettings";
@@ -905,7 +906,8 @@ export default function FXAngel() {
                         border: `1px solid ${historyModel === id ? "#a371f7" : "#21262d"}`,
                         borderRadius: 10, color: historyModel === id ? "#a371f7" : "#8b949e",
                         fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, cursor: "pointer",
-                      }}>{label}</button>
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}><AngelIcon k={id} size={18} />{label}</button>
                     ))}
                   </div>
                   <div style={{ color: "#5a6573", fontSize: 8, fontFamily: "'Space Mono', monospace", marginBottom: 10 }}>

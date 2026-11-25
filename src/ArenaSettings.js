@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import AngelIcon from "./AngelIcon";
 
 // ─── ARENA SETTINGS ───────────────────────────────────────────────────────────
 // Locked panel on the Settings screen. Changes are sent to /api/arena/settings;
@@ -335,7 +336,8 @@ export default function ArenaSettings({ apiBase, onUnlockChange }) {
         return (
           <div key={k} style={{ ...card, borderLeft: `3px solid ${c}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <AngelIcon k={k} size={30} />
                 <span style={{ color: c, fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{m.label}</span>
                 {!m.keyPresent && <span style={{ color: AMBER, fontSize: 9, fontFamily: MONO, marginLeft: 8 }}>no API key on server</span>}
               </div>
